@@ -1,0 +1,61 @@
+id: milk-starch-iodine
+name: Starch in milk
+food: Milk
+question: Has starch been added to thicken watered-down milk?
+status: experimental
+method: colorimetric
+instruments: [phone-camera, sift-device]
+tiers: [public, research, enterprise]
+summary: >
+  Iodine turns blue-black when it meets starch. A drop of milk mixed with
+  iodine sits in the window of the Sift reference card; the camera reads its
+  colour against the card's printed swatches.
+reagents:
+  - Tincture of iodine (2%), sold in pharmacies
+equipment:
+  - Sift reference card (printed)
+  - White paper square or white spoon
+protocol:
+  - id: boil
+    title: Warm and cool the milk
+    instruction: Warm 5 ml of milk until it steams, then let it cool to room temperature.
+  - id: mix
+    title: Add iodine
+    instruction: Put 3 drops of milk on the white square inside the card window, then add 1 drop of iodine.
+  - id: wait
+    title: Wait one minute
+    instruction: Leave it for 60 seconds so the colour settles.
+    wait_seconds: 60
+  - id: photo
+    title: Photograph the card
+    instruction: Hold the phone flat above the card so all four corner squares are in view. Avoid shadows.
+    capture: card
+analysis:
+  type: colorimetric
+  roi: window
+  feature: blueness
+  unit: "% starch (w/v)"
+  qualitative:
+    # Iodine alone on milk reads yellow-brown (b* > 0). Starch-iodine complex reads blue to
+    # blue-black (b* < 0). Rule from the FSSAI DART household test; it says present or absent,
+    # not how much, until a calibration curve exists.
+    rule: "b < -4"
+    positive: Starch detected
+    negative: No starch detected
+  bands:
+    - {max: 0.2, label: No starch detected, verdict: pass}
+    - {max: 1.0, label: Trace starch, verdict: caution}
+    - {max: 100, label: Starch added, verdict: flag}
+confirm_with: Starch determination by spectrophotometry at a dairy or food lab.
+references:
+  - title: Quantification of milk adulterants (starch, H2O2, NaClO) using colorimetric assays and smartphone image analysis
+    source: Microchemical Journal, 2020
+    url: https://clok.uclan.ac.uk/33253
+    finding: Starch, H2O2 and hypochlorite in milk quantified from smartphone RGB images of colour reactions.
+  - title: Detect Adulteration with Rapid Test (DART)
+    source: FSSAI
+    url: https://www.fssai.gov.in/book-details.php?bkid=201
+    finding: Household iodine test for starch in milk and milk products.
+limitations:
+  - Iodine stains; use a white disposable square.
+  - Some flavoured or processed milks contain permitted starch. Check the label first.

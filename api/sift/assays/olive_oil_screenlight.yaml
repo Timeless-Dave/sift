@@ -1,0 +1,47 @@
+id: olive-oil-screenlight
+name: Olive oil purity
+food: Extra virgin olive oil
+question: Has cheaper vegetable oil been mixed in?
+status: experimental
+method: screenlight
+instruments: [phone-screen, sift-device]
+tiers: [public, research, enterprise]
+summary: >
+  The phone screen flashes a sequence of colours at the oil while the front
+  camera records how the oil reflects each one. The pattern of reflections is
+  compared with a model trained on oils mixed at known percentages.
+reagents: []
+equipment:
+  - Sift hood (or any box that blocks room light)
+  - Clear glass or plastic dish
+protocol:
+  - id: prepare
+    title: Pour the sample
+    instruction: Pour about 10 ml of oil into the clear dish so the bottom is covered.
+  - id: hood
+    title: Block the room light
+    instruction: Place the dish and phone inside the hood, screen facing the oil, about 3 cm away.
+  - id: scan
+    title: Run the light scan
+    instruction: Keep the phone still. The screen will flash colours for about 6 seconds.
+    capture: screenlight
+analysis:
+  type: screenlight_pls
+  target: adulterant_percent
+  unit: "% vegetable oil"
+  sequence: [white, black, red, orange, yellow, lime, green, teal, cyan, blue, violet, magenta]
+  frame_ms: 450
+  ambient_max: 0.08
+  bands:
+    - {max: 5, label: No mixing detected, verdict: pass}
+    - {max: 15, label: Possible mixing, verdict: caution}
+    - {max: 100, label: Likely mixed with other oil, verdict: flag}
+confirm_with: Fatty acid profile by gas chromatography, or NMR, at an accredited lab.
+references:
+  - title: Quantification of extra virgin olive oil adulteration using smartphone videos
+    source: Ulster University
+    url: https://pure.ulster.ac.uk/en/publications/07a2fdf5-cbb8-49c2-8d5a-921f26f0711b
+    finding: Screen-light video quantified 5 to 50% vegetable oil in EVOO, R² 0.98, comparable to NIR and UV-vis.
+limitations:
+  - Needs a model trained on oils from the same phone model before it gives a number.
+  - Room light leaking into the hood lowers accuracy; the scan is rejected above the ambient limit.

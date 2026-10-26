@@ -1,0 +1,51 @@
+id: turmeric-lead-swab
+name: Lead in turmeric
+food: Turmeric powder
+question: Has lead chromate pigment been added to brighten the colour?
+status: experimental
+method: colorimetric
+instruments: [phone-camera, sift-device]
+tiers: [public, research, enterprise]
+summary: >
+  A rhodizonate lead swab turns pink to red when it touches lead. The swab tip
+  goes in the card window and the camera reads how red it turned.
+reagents:
+  - Rhodizonate lead test swab (consumer lead test kit)
+  - Clean water
+equipment:
+  - Sift reference card (printed)
+protocol:
+  - id: wet
+    title: Wet the turmeric
+    instruction: Put a pinch of turmeric on a white plate and add 2 drops of water.
+  - id: swab
+    title: Activate and rub the swab
+    instruction: Activate the swab as its instructions say, then rub the wet turmeric for 30 seconds.
+    wait_seconds: 30
+  - id: photo
+    title: Photograph the swab tip
+    instruction: Lay the swab tip inside the card window and photograph the card with all four corner squares in view.
+    capture: card
+analysis:
+  type: colorimetric
+  roi: window
+  feature: redness
+  unit: "redness index"
+  qualitative:
+    # Rhodizonate forms a pink-red complex with lead. Turmeric itself is yellow (high b*, low a*).
+    rule: "a > 20 and hue < 40"
+    positive: Possible lead detected
+    negative: No lead detected by this swab
+  bands:
+    - {max: 15, label: No lead detected by this swab, verdict: pass}
+    - {max: 25, label: Unclear result, verdict: caution}
+    - {max: 1000, label: Possible lead, verdict: flag}
+confirm_with: Lead by ICP-MS or X-ray fluorescence at an accredited lab. Report suspected lead to your food safety authority.
+references:
+  - title: Lead chromate pigment found in turmeric, linked to lead in blood
+    source: Stanford University, 2019
+    url: https://news.stanford.edu/2019/09/24/lead-found-turmeric/
+    finding: Lead chromate added to turmeric in Bangladesh matched lead isotopes in people's blood.
+limitations:
+  - Consumer lead swabs are made for paint and surfaces; their limit of detection in spices has not been validated here.
+  - A negative swab does not prove the spice is lead-free.

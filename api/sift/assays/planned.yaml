@@ -1,0 +1,57 @@
+# Assays in the registry that are not runnable yet. Each one names the research it would build on.
+- id: honey-pollen-origin
+  name: Honey origin by pollen
+  food: Honey
+  question: Did this honey come from the flowers on its label?
+  status: planned
+  method: microscopy
+  instruments: [phone-camera-clip-lens]
+  summary: A clip-on microscope lens photographs pollen grains from diluted honey; a detector counts and classifies them.
+  references:
+    - title: "POL-ID: automated honey authentication through deep learning pollen analysis"
+      source: University of Cape Town
+      url: https://showcase.sit.uct.ac.za/static/media/221/59ed2de1-a99e-44e6-be44-56b907c2999b.pdf
+      finding: 97.7% detection mAP and 93.5% classification across 77 pollen taxa.
+    - title: Pollen grain classification on the Cretan Pollen Dataset
+      source: Plants, 2022
+      url: https://doaj.org/article/4720e2cba15e490f9222d44c6915a5ba
+      finding: 97.5% on clean images but near chance on pollen from real honey; needs honey-sourced training data.
+- id: beef-pork-screenlight
+  name: Pork in minced beef
+  food: Raw minced beef
+  question: Has cheaper pork been mixed in?
+  status: planned
+  method: screenlight
+  instruments: [phone-screen, sift-device]
+  summary: The same screen-light scan as olive oil, trained on beef and pork mixtures.
+  references:
+    - title: Smartphone detection of minced beef adulteration
+      source: Microchemical Journal, 2021
+      url: https://pure.ulster.ac.uk/en/publications/smartphone-detection-of-minced-beef-adulteration/
+      finding: R² 0.73 to 0.98 for 10 to 100% pork across phones, distances and lighting.
+- id: milk-urea-dmab
+  name: Urea in milk
+  food: Milk
+  question: Has urea been added to fake protein content?
+  status: planned
+  method: colorimetric
+  instruments: [phone-camera, sift-device]
+  summary: DMAB reagent turns yellow with urea; the camera reads the intensity.
+  references:
+    - title: Microplate 3D-printed image box for urea in milk by digital image colorimetry
+      source: Analytical Methods
+      url: https://bv.fapesp.br/en/publicacao/273761
+      finding: Limit of detection 15 mg/L; agreed with spectrophotometer and mid-IR reference values.
+- id: milk-ph-strip
+  name: Milk acidity
+  food: Milk
+  question: Has detergent or caustic soda shifted the pH?
+  status: planned
+  method: colorimetric
+  instruments: [phone-camera]
+  summary: A pH indicator strip dipped in milk, read against the card.
+  references:
+    - title: Smartphone-based pH sensing for milk adulteration using halochromic nanofibers
+      source: IIT Hyderabad
+      url: https://publications.iith.ac.in/publication/a-step-towards-miniaturized-milk-adulteration-detection-system
+      finding: SVM classified pure, acidic and basic milk at about 99.7% on an 80:20 split.
