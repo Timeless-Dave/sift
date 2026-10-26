@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 import json
-import secrets
 import sqlite3
 import time
 import uuid
+from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS runs (
@@ -45,11 +45,14 @@ CREATE TABLE IF NOT EXISTS models (
     PRIMARY KEY (assay_id, device)
 );
 CREATE TABLE IF NOT EXISTS api_keys (
-    key TEXT PRIMARY KEY,
+    key_hash TEXT PRIMARY KEY,
+    prefix TEXT NOT NULL,
     owner TEXT NOT NULL,
     created REAL NOT NULL,
+    revoked INTEGER NOT NULL DEFAULT 0,
     calls INTEGER NOT NULL DEFAULT 0
 );
+CREATE INDEX IF NOT EXISTS runs_assay ON runs (assay_id, created);
 """
 
 
@@ -57,12 +60,17 @@ class Store:
     def __init__(self, path: Path | str):
         self.path = str(path)
         with self._conn() as c:
+            cols = {r[1] for r in c.execute("PRAGMA table_info(api_keys)")}
+            if cols and "key_hash" not in cols:  # v0.1 stored plaintext keys; drop them
+                c.execute("DROP TABLE api_keys")
             c.executescript(SCHEMA)
 
     @contextmanager
     def _conn(self) -> Iterator[sqlite3.Connection]:
-        conn = sqlite3.connect(self.path)
+        conn = sqlite3.connect(self.path, timeout=10)
         conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA foreign_keys=ON")
         try:
             yield conn
             conn.commit()
@@ -72,6 +80,7 @@ class Store:
     # Runs -----------------------------------------------------------------
     def save_run(self, assay_id: str, tier: str, device: str | None, instrument: str,
                  status: str, result: dict, features: Any, api_key: str | None = None) -> str:
+        """api_key is the key's prefix (for usage reports), never the key itself."""
         run_id = uuid.uuid4().hex[:12]
         with self._conn() as c:
             c.execute(
@@ -90,17 +99,22 @@ class Store:
         with self._conn() as c:
             c.execute("UPDATE runs SET truth=? WHERE id=?", (truth, run_id))
 
-    def get_run(self, run_id: str) -> dict | None:
+    def get_run(self, run_id: str, viewer: str | None = None, internal: bool = False) -> dict | None:
+        """Runs made with an API key are visible only to that key; public runs to everyone."""
         with self._conn() as c:
             row = c.execute("SELECT * FROM runs WHERE id=?", (run_id,)).fetchone()
-        return _run_row(row) if row else None
+        if not row:
+            return None
+        if not internal and row["api_key"] is not None and row["api_key"] != viewer:
+            return None
+        return _run_row(row)
 
-    def list_runs(self, assay_id: str | None = None, limit: int = 50) -> list[dict]:
-        q = "SELECT * FROM runs"
-        args: tuple = ()
+    def list_runs(self, assay_id: str | None = None, limit: int = 50, viewer: str | None = None) -> list[dict]:
+        q = "SELECT * FROM runs WHERE (api_key IS NULL OR api_key = ?)"
+        args: tuple = (viewer,)
         if assay_id:
-            q += " WHERE assay_id=?"
-            args = (assay_id,)
+            q += " AND assay_id=?"
+            args += (assay_id,)
         q += " ORDER BY created DESC LIMIT ?"
         with self._conn() as c:
             rows = c.execute(q, (*args, limit)).fetchall()
@@ -152,16 +166,20 @@ class Store:
         return [{**dict(r), "metrics": json.loads(r["metrics"])} for r in rows]
 
     # API keys -------------------------------------------------------------
-    def create_key(self, owner: str) -> str:
-        key = "sift_" + secrets.token_urlsafe(24)
+    def create_key(self, key_hash: str, prefix: str, owner: str) -> None:
         with self._conn() as c:
-            c.execute("INSERT INTO api_keys VALUES (?,?,?,0)", (key, owner, time.time()))
-        return key
+            c.execute("INSERT INTO api_keys (key_hash, prefix, owner, created) VALUES (?,?,?,?)",
+                      (key_hash, prefix, owner, time.time()))
 
-    def use_key(self, key: str) -> bool:
+    def use_key(self, key_hash: str) -> bool:
         with self._conn() as c:
-            cur = c.execute("UPDATE api_keys SET calls = calls + 1 WHERE key=?", (key,))
+            cur = c.execute("UPDATE api_keys SET calls = calls + 1 WHERE key_hash=? AND revoked=0", (key_hash,))
         return cur.rowcount == 1
+
+    def revoke_key(self, prefix: str) -> bool:
+        with self._conn() as c:
+            cur = c.execute("UPDATE api_keys SET revoked=1 WHERE prefix=?", (prefix,))
+        return cur.rowcount > 0
 
 
 def _run_row(row: sqlite3.Row) -> dict:

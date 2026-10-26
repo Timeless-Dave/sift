@@ -8,11 +8,14 @@ export function getTier(): Tier {
 }
 export function setTier(t: Tier) { try { localStorage.setItem(TIER_KEY, t); } catch { /* storage off */ } }
 
+/** Labels the API accepts: letters, digits, spaces and . , ( ) + - / _ ; at most 80 characters. */
+export const cleanLabel = (s: string) => s.replace(/[^\w .,()+\-/]/g, "").replace(/\s+/g, " ").trim().slice(0, 80) || "unknown";
+
 /** Calibration is per phone model, so each phone needs a stable label. */
 export async function getDevice(): Promise<string> {
   try {
     const saved = localStorage.getItem(DEVICE_KEY);
-    if (saved) return saved;
+    if (saved) return cleanLabel(saved);
   } catch { /* storage off */ }
   let model = "";
   const uaData = (navigator as unknown as { userAgentData?: { getHighEntropyValues(h: string[]): Promise<{ model?: string; platform?: string }> } }).userAgentData;
@@ -24,9 +27,9 @@ export async function getDevice(): Promise<string> {
     model = /iPhone/.test(ua) ? "iPhone" : /Android/.test(ua) ? (ua.match(/Android[^;]*;\s*([^;)]+)/)?.[1] ?? "Android") : "Desktop";
     model += ` ${screen.width * devicePixelRatio}x${screen.height * devicePixelRatio}`;
   }
-  return model.trim();
+  return cleanLabel(model);
 }
-export function setDevice(label: string) { try { localStorage.setItem(DEVICE_KEY, label); } catch { /* storage off */ } }
+export function setDevice(label: string) { try { localStorage.setItem(DEVICE_KEY, cleanLabel(label)); } catch { /* storage off */ } }
 
 export function esc(s: unknown): string {
   return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));

@@ -6,9 +6,9 @@ import cv2
 import numpy as np
 import pytest
 
-from sift import card, registry
-from sift.analysis import colorimetric, screenlight
-from sift.analysis.quality import check_screenlight
+from sift.domain import registry
+from sift.vision import card, colorimetric, screenlight
+from sift.vision.quality import check_screenlight
 
 
 def photo_of_card(sample_rgb, cast=(1.0, 1.0, 1.0), blur=0):

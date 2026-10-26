@@ -9,7 +9,7 @@ import re
 
 import numpy as np
 
-from .. import card
+from . import card
 from .quality import check_card_capture
 
 

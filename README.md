@@ -64,6 +64,56 @@ Sift reports accuracy only from validation runs with known answers, per test and
 No accuracy figure in this repo is borrowed from the papers it cites. The unit tests run on
 synthetic card images and check the arithmetic, not real-world accuracy.
 
+## Architecture
+
+One API service and one web service, run together with Docker Compose. Inside the API, each
+layer only depends on the layers below it, so any of them can be split into its own service
+later without rewriting it.
+
+```
+web/  PWA (Vite, TypeScript) served by nginx; nginx proxies /api to the API
+api/sift/
+  http/       FastAPI app, middleware, request schemas, thin routers
+  services/   run and calibration orchestration (no HTTP inside)
+  agent/      Meta Model API client, Lab Agent, guardrails
+  vision/     reference card, quality checks, colorimetric and screen-light analysis
+  domain/     assay registry; one YAML file per test in domain/assays/
+  data/       SQLite store (WAL)
+  core/       config, errors, logging, security
+```
+
+## Guardrails
+
+**On the model.** Code measures and Muse Spark explains. Every report the model writes is checked
+before it reaches a user. A report that fails any check is replaced by the deterministic template,
+and the response records why (`report.fallback`, `report.guardrail`). A report fails if it:
+
+- introduces a number the measurement didn't produce,
+- contradicts the measured verdict (says "not detected" when the result is flagged, or the reverse),
+- claims food is safe, pure or certified, or contains links.
+
+The agent's tool calls are allow-listed and their arguments checked (real step ids, bounded timers).
+User text is normalised, stripped of hidden control characters and capped before it reaches the
+model. Meta calls retry on rate limits and server errors, and a circuit breaker stops calling for
+a minute after repeated failures, so an outage degrades to offline guidance instead of timeouts.
+
+**On requests.**
+- Uploads are checked by file signature, size and pixel count (decompression-bomb cap).
+- Screen-light frames are checked for colour names, frame counts and value ranges.
+- Ids and device labels are pattern-checked.
+- API keys are stored as SHA-256 hashes and can be revoked. Runs made with a key are visible only to that key.
+- The enterprise tier requires a key.
+- Admin calls use a constant-time token check.
+- Rate limits apply per IP or key, with a stricter limit on agent and voice calls.
+- Errors return a code, a message and a request id, never a stack trace.
+- Logs are JSON with request ids and never include images, audio or message text.
+- Production settings refuse a wildcard CORS origin.
+
+**In deployment.** The API container runs as a non-root user on a read-only filesystem. nginx sends a
+strict Content-Security-Policy and permits the camera and microphone only for the app itself.
+
+The rate limiter is in-process, so run one API worker per instance; move it to Redis before scaling out.
+
 ## Run it
 
 ```bash
@@ -71,30 +121,22 @@ synthetic card images and check the arithmetic, not real-world accuracy.
 cd api
 pip install -r requirements-dev.txt
 cp .env.example .env            # add MODEL_API_KEY
-python -m pytest
+ruff check . && python -m pytest
 uvicorn sift.main:app --reload --port 8000
 
 # App
 cd web
 npm install
 npm run dev                      # proxies /api to localhost:8000
+
+# Both, as in production
+cp api/.env.example api/.env     # fill it in
+docker compose up --build        # app on http://localhost:8080
 ```
 
-Phone cameras need HTTPS outside `localhost`. For testing on a phone, deploy the API and the
-built app (`npm run build`, set `VITE_API_URL`) behind HTTPS.
+Phone cameras need HTTPS outside `localhost`. Put the web container behind HTTPS before testing on a phone.
 
 Print `docs/sift-reference-card.svg` at 100% on plain white paper.
-
-## Layout
-
-```
-api/sift/assays/        one YAML file per test: protocol, analysis, bands, sources, limits
-api/sift/card.py        reference card: printing, detection, colour correction
-api/sift/analysis/      quality checks, colorimetric and screen-light analysis
-api/sift/agent.py       Lab Agent (Muse Spark)
-api/sift/main.py        REST API
-web/                    PWA (Vite, TypeScript)
-```
 
 ## Sources
 

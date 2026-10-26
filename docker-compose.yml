@@ -1,0 +1,28 @@
+# Two containers: the PWA behind nginx, and the API. nginx proxies /api to the API,
+# so the browser only ever talks to one origin.
+services:
+  api:
+    build: ./api
+    env_file: ./api/.env
+    environment:
+      SIFT_ENV: production
+      SIFT_TRUST_PROXY: "1"
+      SIFT_CORS: http://localhost:8080
+    volumes:
+      - sift-data:/data
+    restart: unless-stopped
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: ["no-new-privileges:true"]
+
+  web:
+    build: ./web
+    ports:
+      - "8080:8080"
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  sift-data:

@@ -139,7 +139,7 @@ def detect_and_rectify(image_bgr: np.ndarray, px_per_mm: float = 8.0) -> np.ndar
     corners, ids, _ = detector.detectMarkers(gray)
     found: dict[int, np.ndarray] = {}
     if ids is not None:
-        for c, i in zip(corners, ids.flatten()):
+        for c, i in zip(corners, ids.flatten(), strict=True):
             if int(i) in MARKER_ANCHORS:
                 found[int(i)] = c.reshape(4, 2)
     if len(found) < 4:

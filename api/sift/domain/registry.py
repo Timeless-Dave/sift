@@ -8,12 +8,14 @@ from typing import Any
 
 import yaml
 
+from ..core.errors import Conflict, NotFound
+
 ASSAY_DIR = Path(__file__).parent / "assays"
 
 RUNNABLE = {"experimental", "validated"}
 
 
-class AssayNotFound(KeyError):
+class AssayNotFound(NotFound):
     pass
 
 
@@ -51,11 +53,22 @@ def get(assay_id: str) -> dict[str, Any]:
     try:
         return load_all()[assay_id]
     except KeyError as exc:
-        raise AssayNotFound(assay_id) from exc
+        raise AssayNotFound(f"No assay called '{assay_id}'.") from exc
 
 
 def is_runnable(assay: dict[str, Any]) -> bool:
     return assay["status"] in RUNNABLE
+
+
+def require_runnable(assay: dict[str, Any], method: str) -> None:
+    if not is_runnable(assay):
+        raise Conflict(f"'{assay['name']}' is planned, not runnable yet.")
+    if assay["method"] != method:
+        raise Conflict(f"'{assay['name']}' uses the {assay['method']} method, not {method}.")
+
+
+def step_ids(assay: dict[str, Any]) -> set[str]:
+    return {s["id"] for s in assay.get("protocol", [])}
 
 
 def capture_step(assay: dict[str, Any]) -> dict[str, Any]:
