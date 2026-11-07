@@ -25,6 +25,11 @@ from .schemas import (
     VibrationCapture,
 )
 
+SHOP_FIX = {
+    "ambient_light": "Press the screen flat against the food or package and cup your hand around the edges.",
+    "weak_signal": "Turn screen brightness up and press the screen flat against the food or package.",
+    "movement": "Brace your elbow or rest the phone on the shelf, then scan again.",
+}
 TORCH_CLIPPED_MAX = 0.15
 TORCH_DARK_MAX = 0.03
 TORCH_EFFECT_MIN = 0.02
@@ -74,8 +79,9 @@ def check_screenlight_capture(frames: dict[str, list[list[float]]]) -> tuple[boo
                                f"The scan is missing the {', '.join(missing[:5])} frames.",
                                "Run the scan again and hold the phone still until it finishes.")]
     report = _vision_screenlight(frames, SCREENLIGHT_AMBIENT_MAX)
+    # The lab assay's advice assumes a hood; in a shop the phone itself is the shield.
     problems = [Problem(modality="screenlight", code=p["code"], severity=p["severity"],  # type: ignore[arg-type]
-                        message=p["message"], fix=p["fix"]) for p in report.problems]
+                        message=p["message"], fix=SHOP_FIX.get(p["code"], p["fix"])) for p in report.problems]
     return report.ok, problems
 
 
