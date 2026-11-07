@@ -19,7 +19,8 @@ targets:
     question: Has cheaper seed oil (sunflower, soybean, canola) been mixed in?
     status: experimental
     signals:
-      screenlight: Seed oils lack most of olive oil's chlorophyll and carotenoids, which absorb red and blue screen light differently.
+      screenlight: Seed oils lack most of olive oil's chlorophyll and carotenoids, which absorb red and blue screen
+                   light differently.
       torch: Overall colour and haze under white light shift as olive oil is diluted.
     likely_causes:
       - Mixed with a cheaper seed oil
@@ -27,14 +28,16 @@ targets:
       - A genuine oil from a different harvest or cultivar than the references
     references:
       - title: Quantification of extra virgin olive oil adulteration using smartphone videos
-        source: Ulster University
-        url: https://pure.ulster.ac.uk/en/publications/07a2fdf5-cbb8-49c2-8d5a-921f26f0711b
-        finding: Screen-light video quantified 5 to 50% vegetable oil in EVOO, R² 0.98, comparable to NIR and UV-vis.
+        source: Talanta, 2020
+        url: https://pure.ulster.ac.uk/en/publications/quantification-of-extra-virgin-olive-oil-adulteration-using-smart/
+        finding: Screen-light video with PLS quantified 5-50% vegetable oil in EVOO (R2 0.98, RMSE 0.02), matching NIR
+                 and UV-vis and beating plain computer vision.
 references:
   - title: Quantification of extra virgin olive oil adulteration using smartphone videos
-    source: Ulster University
-    url: https://pure.ulster.ac.uk/en/publications/07a2fdf5-cbb8-49c2-8d5a-921f26f0711b
-    finding: Screen-light video quantified 5 to 50% vegetable oil in EVOO, R² 0.98, comparable to NIR and UV-vis.
+    source: Talanta, 2020
+    url: https://pure.ulster.ac.uk/en/publications/quantification-of-extra-virgin-olive-oil-adulteration-using-smart/
+    finding: Screen-light video with PLS quantified 5-50% vegetable oil in EVOO (R2 0.98, RMSE 0.02), matching NIR and
+             UV-vis and beating plain computer vision.
 limits:
   - Dark green or tinted bottles block most of the light; decant into a clear glass if the scan is rejected.
   - Needs genuine reference scans from the same phone model before it gives a match result.
