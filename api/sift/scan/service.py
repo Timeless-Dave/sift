@@ -44,8 +44,7 @@ def _template_report(profile: dict, device: str, match: Match, findings: list[Fi
     else:
         text = (f"No verdict yet: Sift holds {match.n_genuine} of {MIN_GENUINE} genuine reference scans for {name} "
                 f"on {device}. A match result needs {MIN_GENUINE}.")
-    for finding in findings:
-        text += f" {finding.target}: {finding.label}"
+    # Findings are returned as structured data; the text stays a readable paragraph.
     return text
 
 

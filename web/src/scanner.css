@@ -84,7 +84,7 @@ body[data-page="scan"] main { max-width: 560px; padding-top: 0; }
 .answer.state-differs h1 { color: var(--flag); }
 .answer.state-no_reference h1, .answer.state-stored h1 { color: var(--neutral); }
 .answer.state-rejected h1 { color: var(--caution); }
-.answer .meter { position: relative; height: 34px; margin: 18px 0 6px; border-radius: 8px; background: var(--paper);
+.answer .meter { display: block; width: 100%; position: relative; height: 34px; margin: 18px 0 6px; border-radius: 8px; background: var(--paper);
   border: 1px solid var(--rule); overflow: visible; }
 .answer .meter .zone { position: absolute; left: 0; top: 0; bottom: 0; display: flex; align-items: center; padding-left: 10px;
   background: color-mix(in srgb, var(--pass) 18%, transparent); border-right: 2px dashed var(--pass); border-radius: 8px 0 0 8px;

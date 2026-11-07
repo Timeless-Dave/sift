@@ -23,7 +23,7 @@ export async function scanResultView(root: HTMLElement, scanId: string) {
       ${headline(r, name)}
       ${r.status === "ok" ? meter(r) : ""}
       ${problems(r)}
-      ${r.status === "ok" && r.match.status === "differs" && food ? causes(food) : ""}
+      ${r.status === "ok" && r.match.status === "differs" && food && r.report?.agent === "muse-spark" ? causes(food) : ""}
       ${r.report?.text ? `<p class="report">${esc(r.report.text)}</p>
         <p class="agent-tag">${r.report.agent === "muse-spark" ? "Explained by the Lab Agent from Sift's measurements" : "Written from Sift's measurements"}</p>` : ""}
       ${findings(r, food)}

@@ -185,8 +185,14 @@ export async function scanView(root: HTMLElement): Promise<() => void> {
       pose.textContent = instruction;
       for (let n = 3; n > 0; n--) { stage.textContent = `Starting in ${n}`; await wait(1000, scanning!.signal); }
     };
+    let flipped = false;
     const onStage = (s: ScanStage) => {
       pose.textContent = s.instruction;
+      // Bubble rise: the jar starts upside down; recording has begun, so tell them to turn it now.
+      if (s.modality === "bubble" && (s.fraction ?? 0) >= 0.05) {
+        pose.textContent = "Turn it upright now";
+        if (!flipped) { flipped = true; navigator.vibrate?.(120); }
+      }
       if (s.modality) stage.textContent = `${SENSOR_INFO[s.modality]?.name ?? s.modality}${s.hint ? `: ${s.hint}` : ""}`;
       bar.style.width = `${Math.round((s.fraction ?? 0) * 100)}%`;
     };
