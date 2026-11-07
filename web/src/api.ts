@@ -105,7 +105,9 @@ export const scanApi = {
   foods: () => req<Food[]>("/v1/foods"),
   food: (id: string) => req<Food>(`/v1/foods/${encodeURIComponent(id)}`),
   scan: (body: ScanRequest) => req<ScanResult>("/v1/scans", json(body)),
-  result: (id: string) => req<ScanResult & { created?: number; device?: string }>(`/v1/scans/${encodeURIComponent(id)}`),
+  /** GET /v1/scans/{id} returns the stored row; the scan result sits under `result`. */
+  result: (id: string) => req<{ id: string; food: string; device: string; created: number; result: ScanResult }>(
+    `/v1/scans/${encodeURIComponent(id)}`).then((row) => ({ ...row.result, scan_id: row.id, food: row.food })),
   identify: (jpeg: Blob) => {
     const fd = new FormData(); fd.append("image", jpeg, "frame.jpg");
     return req<Identification>("/v1/identify", { method: "POST", body: fd });

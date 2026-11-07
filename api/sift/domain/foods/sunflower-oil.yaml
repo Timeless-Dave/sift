@@ -28,7 +28,7 @@ targets:
     references:
       - title: Can the Image Processing Technique Be Potentially Used to Evaluate Quality of Frying Oil?
         source: Journal of Food Quality, 2019 (record via Europe PMC)
-        url: https://www.ebi.ac.uk/europepmc/webservices/rest/search?query=%22Evaluate%20Quality%20of%20Frying%20Oil%22%20image%20processing&format=json&resultType=core
+        url: https://doi.org/10.1155/2019/6580320
         finding: A lab computer-vision contact angle correlated with frying-oil FFA and polar materials (R2 above 0.94)
                  and predicted them (R2 above 0.91); a camera method, not a phone.
       - title: Quantification of extra virgin olive oil adulteration using smartphone videos
@@ -39,7 +39,7 @@ targets:
 references:
   - title: Can the Image Processing Technique Be Potentially Used to Evaluate Quality of Frying Oil?
     source: Journal of Food Quality, 2019 (record via Europe PMC)
-    url: https://www.ebi.ac.uk/europepmc/webservices/rest/search?query=%22Evaluate%20Quality%20of%20Frying%20Oil%22%20image%20processing&format=json&resultType=core
+    url: https://doi.org/10.1155/2019/6580320
     finding: A lab computer-vision contact angle correlated with frying-oil FFA and polar materials (R2 above 0.94) and
              predicted them (R2 above 0.91); a camera method, not a phone.
 limits:

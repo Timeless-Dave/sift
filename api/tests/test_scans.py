@@ -352,7 +352,7 @@ def test_scan_get_and_filter(client):
 
 
 def test_foods_endpoints(client):
-    entry = client.get("/v1/foods").json()[0]
+    entry = next(f for f in client.get("/v1/foods").json() if f["id"] == "olive-oil")
     assert (entry["id"], entry["name"], entry["category"]) == ("olive-oil", "Olive oil", "oil")
     assert entry["aliases"] and entry["scan"]["modalities"] == ["screenlight", "torch"]
     assert entry["targets"][0]["status"] == "experimental"

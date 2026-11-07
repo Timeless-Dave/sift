@@ -11,8 +11,11 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-Modality = Literal["torch", "screenlight", "acoustic", "vibration", "motion"]
-SENSING_MODALITIES: tuple[str, ...] = ("torch", "screenlight", "acoustic", "vibration")  # motion is a gate only
+Modality = Literal["torch", "screenlight", "acoustic", "vibration", "contact", "bubble", "motion"]
+SENSING_MODALITIES: tuple[str, ...] = (
+    "torch", "screenlight", "acoustic", "vibration", "contact", "bubble")  # motion is a gate only
+MAX_RINGS = 16
+MAX_TRACK = 240
 MAX_BINS = 128
 MAX_SPECTRUM = 64
 
@@ -80,6 +83,27 @@ class VibrationCapture(BaseModel):
     vibrate_available: bool
 
 
+class ContactCapture(BaseModel):
+    """Camera and torch pressed against tissue (meat, fish). Light scatters below the surface and comes
+    back out around the torch; `rings` is mean sRGB in concentric rings from the brightest point
+    outwards, so the radial fall-off per colour carries absorption and scattering."""
+    dark: RGB = Field(description="Mean colour with the torch off, camera still pressed on")
+    rings: list[RGB] = Field(min_length=4, max_length=MAX_RINGS)
+    clipped: Unit
+    torch_available: bool
+
+
+class BubbleCapture(BaseModel):
+    """Sealed bottle or jar turned upside down, filmed while the air bubble rises (after LiquidHash,
+    MobiSys 2022). Positions are fractions of the frame height (0 = bottom, 1 = top), so they don't
+    depend on resolution; the reference library absorbs container size."""
+    fps: float = Field(ge=10, le=480)
+    track: list[Annotated[float, Field(ge=0, le=1)]] = Field(min_length=5, max_length=MAX_TRACK,
+                                                             description="Bubble front height per frame")
+    rise_time_s: float | None = Field(default=None, ge=0, le=120, description="Time from 20% to 80% height")
+    tracked_fraction: Unit = Field(description="Share of frames where the bubble front was found")
+
+
 class MotionCapture(BaseModel):
     max_rotation_dps: float = Field(ge=0, le=5000)
     accel_jitter: float = Field(ge=0, le=100)
@@ -90,12 +114,14 @@ class Capture(BaseModel):
     screenlight: ScreenlightCapture | None = None
     acoustic: AcousticCapture | None = None
     vibration: VibrationCapture | None = None
+    contact: ContactCapture | None = None
+    bubble: BubbleCapture | None = None
     motion: MotionCapture | None = None
 
     @model_validator(mode="after")
     def _something(self) -> Capture:
         if not any(getattr(self, m) is not None for m in SENSING_MODALITIES):
-            raise ValueError("capture needs at least one of torch, screenlight, acoustic, vibration")
+            raise ValueError(f"capture needs at least one of {', '.join(SENSING_MODALITIES)}")
         return self
 
 

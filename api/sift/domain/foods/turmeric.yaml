@@ -34,12 +34,12 @@ targets:
       - title: Identifying Turmeric Powder by Source and Metanil Yellow Adulteration Levels Using Near-Infrared Spectra
                and PCA-SIMCA Modeling
         source: Journal of Food Protection, 2020
-        url: https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=32034409&retmode=text&rettype=abstract
+        url: https://pubmed.ncbi.nlm.nih.gov/32034409/
         finding: A handheld NIR spectrometer with PCA-SIMCA classified 0-30% metanil yellow in turmeric from 6
                  retailers; a lab instrument, not a phone.
       - title: Smartphone-based imaging colorimetric assay for monitoring the quality of curcumin in turmeric powder
         source: Analytical Sciences, 2024
-        url: https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=38607598&retmode=text&rettype=abstract
+        url: https://pubmed.ncbi.nlm.nih.gov/38607598/
         finding: Smartphone colorimetry quantified curcumin (LOD 0.12 mg/L, HPLC-validated) but needs a ferric-chloride
                  reaction, acetonitrile extraction and an LED lightbox.
 references:
@@ -50,7 +50,7 @@ references:
              elevated blood lead levels.
   - title: Smartphone-based imaging colorimetric assay for monitoring the quality of curcumin in turmeric powder
     source: Analytical Sciences, 2024
-    url: https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=38607598&retmode=text&rettype=abstract
+    url: https://pubmed.ncbi.nlm.nih.gov/38607598/
     finding: Smartphone colorimetry quantified curcumin (LOD 0.12 mg/L, HPLC-validated) but needs a ferric-chloride
              reaction, acetonitrile extraction and an LED lightbox.
 limits:

@@ -16,6 +16,8 @@ this contract.
 | `screenlight` | Front camera + screen as light source | Reflectance under 12 screen colours: a coarse spectrum         | All                        |
 | `acoustic`    | Speaker + mic, 200 Hz–20 kHz sweep    | How the container and contents pass and damp sound, including near-ultrasound above 17 kHz most people can't hear | All (48 kHz audio)         |
 | `vibration`   | Vibration motor + accelerometer       | How a pressed-on solid (meat, fruit, a jar) damps vibration    | Vibrate: Android only      |
+| `contact`     | Rear camera + torch pressed on meat/fish | Light that scatters a few mm into the tissue and comes back out, as mean colour in rings around the torch (myoglobin and haemoglobin absorb in 500–700 nm; vein finders use the same principle at NIR) | Torch: Android Chrome only |
+| `bubble`      | Rear camera, bottle turned upside down | How fast the air bubble rises through the liquid: viscosity and density (Stokes' law), after LiquidHash, MobiSys 2022 | 30 fps is fine in browsers, so this suits honey and syrups; thin oils need 120 fps or more |
 | `motion`      | Gyroscope + accelerometer             | Whether the phone was held still (quality gate only)           | All, after a permission tap on iOS |
 | identify      | Camera frame + Muse vision; barcode   | Which food or product this is                                  | BarcodeDetector: Android   |
 

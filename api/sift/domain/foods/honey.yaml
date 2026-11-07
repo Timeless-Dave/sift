@@ -30,26 +30,26 @@ targets:
       - title: "Artificial intelligence for honey integrity in Ghana: a feasibility study on the use of smartphone
                images coupled with multivariate algorithms"
         source: Smart Agricultural Technology, 2024
-        url: https://openalex.org/works/W4394013609
+        url: https://doi.org/10.1016/j.atech.2024.100453
         finding: Smartphone-camera images with a random forest separated authentic from sugar-syrup-spiked honey at 100%
                  accuracy, specificity and sensitivity.
       - title: A Controlled Proof-of-Concept Study for Quantitative Estimation of Syrup Addition in Honey Using RGB
                Histogram Descriptors and Explainable Machine Learning
         source: Applied Sciences, 2026
-        url: https://mdpi-res.com/d_attachment/applsci/applsci-16-08452/article_deploy/applsci-16-08452.pdf?version=1787651491
+        url: https://doi.org/10.3390/app16178452
         finding: Smartphone RGB histograms estimated 0-50% syrup in one lab-made series (PLSR R2 0.98, RMSE 2.22pp) but
                  needs independent samples, more honey-syrup pairs and more devices.
 references:
   - title: "Artificial intelligence for honey integrity in Ghana: a feasibility study on the use of smartphone images
            coupled with multivariate algorithms"
     source: Smart Agricultural Technology, 2024
-    url: https://openalex.org/works/W4394013609
+    url: https://doi.org/10.1016/j.atech.2024.100453
     finding: Smartphone-camera images with a random forest separated authentic from sugar-syrup-spiked honey at 100%
              accuracy, specificity and sensitivity.
   - title: A Controlled Proof-of-Concept Study for Quantitative Estimation of Syrup Addition in Honey Using RGB
            Histogram Descriptors and Explainable Machine Learning
     source: Applied Sciences, 2026
-    url: https://mdpi-res.com/d_attachment/applsci/applsci-16-08452/article_deploy/applsci-16-08452.pdf?version=1787651491
+    url: https://doi.org/10.3390/app16178452
     finding: Smartphone RGB histograms estimated 0-50% syrup in one lab-made series (PLSR R2 0.98, RMSE 2.22pp) but
              needs independent samples, more honey-syrup pairs and more devices.
 limits:

@@ -16,7 +16,7 @@ import yaml
 from ..core.errors import NotFound
 
 FOOD_DIR = Path(__file__).parent / "foods"
-SENSING = ("torch", "screenlight", "acoustic", "vibration")
+SENSING = ("torch", "screenlight", "acoustic", "vibration", "contact", "bubble")
 KINDS = ("adulteration", "cultured", "freshness", "identity")
 STATUSES = ("research", "experimental", "validated")
 CATEGORIES = ("oil", "dairy", "meat", "fish", "spice", "honey", "other")

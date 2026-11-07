@@ -3,7 +3,7 @@
  */
 import { scanApi, type Food } from "../api";
 import { SCREEN_COLOURS, SCREEN_SEQUENCE, SENSOR_INFO, available, scanFood, type ScanStage } from "../scanner";
-import { detectBarcode, barcodeSupport } from "../sensors/barcode";
+import { detectBarcode, support as barcodeSupport } from "../sensors/barcode";
 import { requestMotionPermission } from "../sensors/motion";
 import { el, esc, getDevice, getTier, go } from "../util";
 

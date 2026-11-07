@@ -28,7 +28,7 @@ targets:
     references:
       - title: Classification of Chicken Meat Freshness using Convolutional Neural Network Algorithms
         source: IEEE 3ICT conference, 2020
-        url: https://openalex.org/works/W3118596929
+        url: https://doi.org/10.1109/3ict51146.2020.9312018
         finding: Smartphone photos of broiler breasts, fresh vs rotten, classified by the Ayam6Net CNN at 92.9%
                  accuracy.
       - title: Chicken Meat Freshness Identification using Colors and Textures Feature
@@ -56,7 +56,7 @@ targets:
 references:
   - title: Classification of Chicken Meat Freshness using Convolutional Neural Network Algorithms
     source: IEEE 3ICT conference, 2020
-    url: https://openalex.org/works/W3118596929
+    url: https://doi.org/10.1109/3ict51146.2020.9312018
     finding: Smartphone photos of broiler breasts, fresh vs rotten, classified by the Ayam6Net CNN at 92.9% accuracy.
   - title: Review of analytical methods for cell-cultivated products
     source: UK Food Standards Agency, 2026

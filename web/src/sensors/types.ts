@@ -3,7 +3,7 @@
  * Every reading is a summary computed on the phone. Raw audio and video never leave it.
  */
 
-export type Modality = "torch" | "screenlight" | "acoustic" | "vibration" | "motion";
+export type Modality = "torch" | "screenlight" | "acoustic" | "vibration" | "contact" | "bubble" | "motion";
 export type RGB = [number, number, number]; // sRGB 0..1
 
 export interface RGBStats { mean: RGB; std: RGB; clipped: number }
@@ -12,6 +12,10 @@ export interface TorchCapture { off: RGBStats; on: RGBStats | null; torch_availa
 export interface ScreenlightCapture { frames: Record<string, RGB[]> }
 export interface AcousticCapture { sample_rate: number; bins_hz: number[]; response_db: number[]; noise_db: number[] }
 export interface VibrationCapture { rate_hz: number; rms_on: number; rms_off: number; spectrum: number[]; vibrate_available: boolean }
+/** Camera + torch pressed against meat or fish: mean colour in rings from the brightest point outwards. */
+export interface ContactCapture { dark: RGB; rings: RGB[]; clipped: number; torch_available: boolean }
+/** Upside-down bottle: bubble front height per frame as a fraction of frame height (0 bottom, 1 top). */
+export interface BubbleCapture { fps: number; track: number[]; rise_time_s: number | null; tracked_fraction: number }
 export interface MotionCapture { max_rotation_dps: number; accel_jitter: number }
 
 export interface Capture {
@@ -19,6 +23,8 @@ export interface Capture {
   screenlight?: ScreenlightCapture;
   acoustic?: AcousticCapture;
   vibration?: VibrationCapture;
+  contact?: ContactCapture;
+  bubble?: BubbleCapture;
   motion?: MotionCapture;
 }
 

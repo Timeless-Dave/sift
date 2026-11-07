@@ -54,7 +54,13 @@ export async function scanFood(
     const onProgress: OnProgress = (modality, fraction, hint) =>
       onStage({ pose: pose.id, instruction: pose.instruction, modality, fraction, hint });
     const part = await runScan(mods, { screenSequence: SCREEN_SEQUENCE, frameMs: 450, onProgress, signal });
-    Object.assign(capture, part);
+    const { motion, ...rest } = part;
+    Object.assign(capture, rest);
+    // Each pose has its own motion monitor; keep the shakiest reading so the gate sees the worst moment.
+    if (motion) capture.motion = capture.motion ? {
+      max_rotation_dps: Math.max(capture.motion.max_rotation_dps, motion.max_rotation_dps),
+      accel_jitter: Math.max(capture.motion.accel_jitter, motion.accel_jitter),
+    } : motion;
   }
   return capture;
 }
