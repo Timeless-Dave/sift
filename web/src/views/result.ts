@@ -77,7 +77,7 @@ function researchPanel(r: RunResult, assay: Assay) {
   const rows = Object.entries({ ...feats, ...(r.quality?.metrics ?? {}) })
     .filter(([k, v]) => k !== "vector" && typeof v !== "object")
     .map(([k, v]) => `<tr><th>${esc(k)}</th><td>${esc(v)}</td></tr>`).join("");
-  const isNumeric = assay.method === "screenlight" || assay.analysis?.unit;
+  const isNumeric = assay.method === "screenlight" || r.value != null;
   return `<section class="research">
     <h2>Run data</h2>
     <table class="data"><tbody>${rows}</tbody></table>

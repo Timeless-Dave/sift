@@ -12,6 +12,7 @@ import json
 import logging
 import re
 
+from ..core.errors import InvalidInput
 from ..domain import registry
 from . import guardrails as g
 from .client import MetaClient, MetaUnavailable, image_part
@@ -89,7 +90,13 @@ class LabAgent:
                    for m in history[-max_history:]
                    if isinstance(m, dict) and m.get("role") in ("user", "assistant") and m.get("content")]
         steps = assay["protocol"]
-        current = next((s for s in steps if s["id"] == step_id), steps[0])
+        if step_id is None:
+            current = steps[0]
+        else:
+            current = next((s for s in steps if s["id"] == step_id), None)
+            if current is None:
+                valid = ", ".join(s["id"] for s in steps)
+                raise InvalidInput(f"Unknown step '{step_id}'. Use one of: {valid}.")
         if not self.client.online:
             return self._offline_turn(assay, current, user_text)
 

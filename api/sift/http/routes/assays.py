@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Path
 from fastapi.responses import Response
 
 from ...data.store import PUBLIC
@@ -20,7 +20,8 @@ def list_assays(who: str | None = Depends(viewer), c: Container = Depends(contai
 
 
 @router.get("/v1/assays/{assay_id}", summary="One test with its protocol, method, sources and accuracy")
-def get_assay(assay_id: str, who: str | None = Depends(viewer), c: Container = Depends(container)) -> dict:
+def get_assay(assay_id: str = Path(min_length=1, max_length=64, pattern=r"^[a-z0-9-]+$"),
+              who: str | None = Depends(viewer), c: Container = Depends(container)) -> dict:
     a = registry.get(assay_id)
     out = dict(a) | {"runnable": registry.is_runnable(a)}
     if registry.is_runnable(a):

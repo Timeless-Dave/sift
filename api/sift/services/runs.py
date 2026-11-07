@@ -56,6 +56,7 @@ def _decode(raw: bytes, limit: int) -> np.ndarray:
 
 
 def validate_frames(frames: dict[str, list[list[float]]], assay: dict, s: Settings) -> None:
+    """First gate for screen-light scans: missing or malformed colours fail here with 422, before quality checks."""
     seq = assay["analysis"]["sequence"]
     if len(frames) > s.limits.max_colours:
         raise InvalidInput("Too many colours in the scan.")
@@ -148,6 +149,8 @@ class RunService:
         if viewer is not None and self.store.run_owner(run_id) != viewer:
             # Otherwise a key could shift the public accuracy figure without seeing it move.
             raise Forbidden("An API key can record known answers only on runs made with that key.")
+        if run["result"].get("value") is None and value not in (0, 1):
+            raise InvalidInput("For present-or-absent results, record 0 for absent or 1 for present.")
         self.store.set_truth(run_id, value)
         return self.accuracy(registry.get(run["assay_id"]), viewer)
 
@@ -183,7 +186,22 @@ class CalibrationService:
         assay = registry.get(run["assay_id"])
         feats = run["features"]
         if assay["method"] == "colorimetric":
-            feats = feats[assay["analysis"]["feature"]]
+            try:
+                feat_val = feats[assay["analysis"]["feature"]]
+                feats = float(feat_val)
+            except (KeyError, TypeError, ValueError):
+                raise InvalidInput("This run's features don't match the test. Use a run from the same test.") from None
+            if not math.isfinite(feats):
+                raise InvalidInput("This run's features don't match the test. Use a run from the same test.")
+        else:
+            if not isinstance(feats, (list, tuple)) or len(feats) == 0:
+                raise InvalidInput("This run's features don't match the test. Use a run from the same test.")
+            try:
+                feats = [float(v) for v in feats]
+            except (TypeError, ValueError):
+                raise InvalidInput("This run's features don't match the test. Use a run from the same test.") from None
+            if not all(math.isfinite(v) for v in feats):
+                raise InvalidInput("This run's features don't match the test. Use a run from the same test.")
         device = run["device"] or "unknown"
         owner = viewer or PUBLIC
         self.store.add_sample(run["assay_id"], device, known, feats, note[:200], owner=owner, run_id=run_id)

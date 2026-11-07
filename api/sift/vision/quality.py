@@ -81,6 +81,7 @@ def check_screenlight(frames: dict[str, list[list[float]]], ambient_max: float) 
                "Move the phone closer to the sample and turn screen brightness to maximum.")
     if jitter > 0.04:
         q.fail("movement", "The phone or sample moved during the scan.", "Rest the phone in the hood and scan again.")
+    # Defence in depth: the API rejects missing colours with 422 before this runs. Direct callers still fail here.
     missing = [c for c in ("white", "black") if c not in frames]
     if missing:
         q.fail("incomplete", f"The scan is missing the {', '.join(missing)} frames.", "Run the scan again.")
