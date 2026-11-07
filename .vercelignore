@@ -1,0 +1,14 @@
+# Never upload secrets, local state or build caches to Vercel.
+.env
+**/.env
+!**/.env.example
+**/.venv
+**/node_modules
+**/__pycache__
+**/.pytest_cache
+**/.ruff_cache
+**/*.db
+**/*.db-*
+web/dist
+caddy-root.crt
+.git
