@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ipaddress
 import logging
 from dataclasses import dataclass
 
@@ -52,12 +53,39 @@ def container(request: Request) -> Container:
     return request.app.state.container
 
 
+# Peers the API accepts X-Forwarded-For from when SIFT_TRUST_PROXY=1: the Docker
+# networks nginx and caddy run on, plus loopback for host-side checks. LAN
+# (192.168/16) is deliberately excluded so a direct client can't spoof its IP.
+_TRUSTED_PROXY_NETWORKS = (
+    ipaddress.ip_network("10.0.0.0/8"),
+    ipaddress.ip_network("172.16.0.0/12"),
+    ipaddress.ip_network("127.0.0.0/8"),
+    ipaddress.ip_network("::1/128"),
+)
+
+
+def _peer_is_trusted_proxy(peer: str | None) -> bool:
+    """True when the immediate peer is the Docker-network proxy, never for unknown hosts."""
+    if not peer:
+        return False
+    try:
+        ip = ipaddress.ip_address(peer)
+    except ValueError:
+        return False
+    return any(ip in net for net in _TRUSTED_PROXY_NETWORKS)
+
+
 def client_ip(request: Request, c: Container) -> str:
-    if c.settings.trust_proxy:
-        fwd = request.headers.get("x-forwarded-for")
-        if fwd:
-            return fwd.split(",")[0].strip()
-    return request.client.host if request.client else "unknown"
+    """IP for rate limiting. With SIFT_TRUST_PROXY=1 and a trusted proxy peer, the last
+    X-Forwarded-For entry (the address nginx saw); otherwise the immediate peer."""
+    peer = request.client.host if request.client else "unknown"
+    if not c.settings.trust_proxy or not _peer_is_trusted_proxy(peer):
+        return peer
+    fwd = request.headers.get("x-forwarded-for")
+    if not fwd:
+        return peer
+    entries = [e.strip() for e in fwd.split(",") if e.strip()]
+    return entries[-1] if entries else peer
 
 
 @dataclass

@@ -1,0 +1,7 @@
+# HTTPS front end for phones (compose profile "https"). Self-signed local CA: phones
+# reach https://<host-lan-ip>:8443 and trust the Caddy root cert (see README).
+:8443 {
+	tls internal
+	reverse_proxy web:8080
+	header Strict-Transport-Security "max-age=31536000; includeSubDomains"
+}

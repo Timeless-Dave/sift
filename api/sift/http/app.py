@@ -40,7 +40,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app = FastAPI(title="Sift Lab API", version=__version__,
                   description="Run food-fraud screening assays from a phone camera or the Sift device. "
                               "Results are screening results; each names the lab method that would confirm it.",
-                  docs_url="/docs", redoc_url=None)
+                  docs_url=None if settings.production else "/docs", redoc_url=None,
+                  openapi_url=None if settings.production else "/openapi.json")
     app.state.container = Container.build(settings)
 
     app.add_middleware(CORSMiddleware, allow_origins=list(settings.cors_origins),

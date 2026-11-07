@@ -29,7 +29,8 @@ Sift will not:
 - **Researcher**: practice runs, raw features, per-phone calibration, validation runs that
   measure accuracy, CSV and JSON export. Operators can set SIFT_PROTECT_CALIBRATION=1 so
   calibration writes and validation truth need an API key.
-- **Developers and organisations**: the same REST API with API keys. See `/docs` on a running server.
+- **Developers and organisations**: the same REST API with API keys. See `/docs` on a dev server
+  (disabled when `SIFT_ENV=production`).
 
 ## How a result is produced
 
@@ -139,12 +140,37 @@ cd web
 npm install
 npm run dev                      # proxies /api to localhost:8000
 
-# Both, as in production
-cp api/.env.example api/.env     # fill it in
+# Both, as in production (localhost only: plain HTTP, bearer tokens in cleartext off localhost)
+cp api/.env.example api/.env     # fill it in; missing file is fine, the defaults run offline
 docker compose up --build        # app on http://localhost:8080
 ```
 
-Phone cameras need HTTPS outside `localhost`. Put the web container behind HTTPS before testing on a phone.
+Phone cameras need HTTPS outside `localhost`. For a phone on the same LAN, run the HTTPS profile:
+
+```bash
+# Find the host LAN IP first (macOS: ipconfig getifaddr en0; Linux: hostname -I | cut -d' ' -f1)
+SIFT_CORS=http://localhost:8080,https://<host-lan-ip>:8443 docker compose --profile https up --build
+# App on https://<host-lan-ip>:8443 (:8080 still serves plain HTTP for localhost)
+```
+
+The cert comes from Caddy's local CA (`tls internal`). On the phone, either accept the browser warning
+(Advanced / Show Details, visit anyway) or install the root cert for a green lock:
+
+```bash
+docker compose --profile https cp caddy:/data/caddy/pki/authorities/local/root.crt ./caddy-root.crt
+```
+
+Send `caddy-root.crt` to the phone, then:
+
+- iOS: open the file, install the profile, then Settings > General > About > Certificate Trust Settings
+  and enable full trust for the Caddy authority.
+- Android: Settings > Security > Encryption & credentials > Install a certificate > CA certificate,
+  then select the file (exact steps vary by vendor).
+
+Topology is browser -> (caddy) -> nginx (web) -> api. `SIFT_TRUST_PROXY=1` (set in compose) means the
+API trusts `X-Forwarded-For` only from its Docker-network proxy and rate-limits off the last entry (the
+address nginx saw); leading entries and any `X-Forwarded-For` from a direct client are ignored. Leave
+it `0` when running uvicorn directly, and never set it `1` when the API is reachable from the internet.
 
 Print `docs/sift-reference-card.svg` at 100% on plain white paper.
 
