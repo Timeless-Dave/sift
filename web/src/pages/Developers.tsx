@@ -61,6 +61,14 @@ export default function Developers() {
         </p>
       </section>
 
+      <h2 className="h2">API keys</h2>
+      <p>
+        Most endpoints work without a key. Send <code>X-Sift-Key: sift_…</code> to keep your scans, reference library,
+        calibration and accuracy figures private to your key; the <code>enterprise</code> tier requires one, and servers
+        can require a key for everything or for reference and calibration writes. Keys are issued by the server operator.
+      </p>
+      <pre><code>{`curl ${base}/v1/scans -H "X-Sift-Key: $SIFT_KEY"`}</code></pre>
+
       <h2 className="h2">Scan food with the phone&apos;s sensors</h2>
       <p>
         The scanner never uploads raw audio or video. Each sensor module summarises its readings on the
