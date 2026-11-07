@@ -135,7 +135,7 @@ p { margin: 0 0 1em; }
 @media (max-width: 760px) { .site-foot .cols { grid-template-columns: 1fr 1fr; } .site-foot .cols > :first-child { grid-column: 1 / -1; } }
 
 /* Generic page frame for inner pages */
-.page { padding: 40px 0 0; }
+.page { padding-top: 40px; }  /* top only: .wrap owns the side gutter */
 .page-head { display: grid; gap: 14px; margin-bottom: 36px; max-width: 760px; }
 .back { display: inline-flex; gap: 8px; color: var(--muted); text-decoration: none; font: 500 0.88rem var(--sans); }
 .back:hover { color: var(--ink); }

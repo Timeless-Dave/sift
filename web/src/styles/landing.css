@@ -19,8 +19,9 @@
 .scan-figure .frame { position: relative; aspect-ratio: 4 / 5; border-radius: var(--r-l); overflow: hidden; background: var(--night);
   box-shadow: 0 30px 60px -30px rgba(40, 30, 10, 0.45); }
 .scan-figure img { width: 100%; height: 100%; object-fit: cover; filter: saturate(1.05) contrast(1.02); }
-.scan-figure .flash { position: absolute; inset: 0; background: var(--flash); mix-blend-mode: soft-light; opacity: 0.55;
-  transition: background 0.35s ease; }
+/* The screen colour washing over the jar: a glow from the screen side, not a filter over the whole photo. */
+.scan-figure .flash { position: absolute; inset: 0; background: radial-gradient(120% 60% at 0% 100%, var(--flash) 0%, transparent 55%);
+  mix-blend-mode: screen; opacity: 0.35; transition: background 0.35s ease; }
 .hud { position: absolute; inset: 0; color: #fff; padding: 18px; display: flex; flex-direction: column; justify-content: space-between;
   text-shadow: 0 1px 2px rgba(0,0,0,.45); font-size: 0.72rem; letter-spacing: 0.08em; }
 .hud .corner { position: absolute; width: 28px; height: 28px; border: 1.5px solid rgba(255,255,255,.9); }
