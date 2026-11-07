@@ -1,0 +1,59 @@
+# Chilli powder: Sudan dyes and brick powder are confirmed only by lab tests; colour-image
+# evidence exists for Sudan I in ketchup, not in chilli powder, so the target stays research.
+id: chilli-powder
+name: Chilli powder
+category: spice
+aliases: [chilli powder, chili powder, red chilli powder, ground chilli, lal mirch]
+# Open Food Facts category tags that map a scanned barcode to this profile.
+off_category_tags: [en:chili-powders, en:spices]
+scan:
+  modalities: [screenlight, torch]
+  placement: Lay the packet flat and hold the phone over the powder window.
+summary: >
+  The screen flashes colours onto the powder while the front camera records the reflections, and
+  the torch reading adds brightness and texture. The pattern is compared with genuine chilli
+  powder scanned on the same kind of phone.
+targets:
+  - id: sudan-and-brick
+    kind: adulteration
+    question: Has Sudan dye or brick powder been added for colour and bulk?
+    status: research
+    signals:
+      screenlight: Sudan dyes add an intense synthetic red that shifts reflectance under each screen colour.
+      torch: Brick powder dulls the red and coarsens the texture visible under white light.
+    likely_causes:
+      - Sudan dye added for colour
+      - Brick powder added for bulk
+      - A different chilli variety or roast level than the references
+    references:
+      - title: Fast, easy, cheap, robust and safe method of analysis of Sudan dyes in chilli pepper powder
+        source: Heliyon, 2020
+        url: https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=33088976&retmode=text&rettype=abstract
+        finding: Sudan I-IV in 24 market chilli powders needed solvent extraction plus UFLC-UV (LOD 0.02-0.04 mg/kg); a
+                 lab method, not a phone scan.
+      - title: Qualitative and quantitative analysis based on digital images to determine the adulteration of ketchup
+               samples with Sudan I dye
+        source: Food Chemistry, 2020
+        url: https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=32480258&retmode=text&rettype=abstract
+        finding: Digital-image colour histograms quantified Sudan I in ketchup (R2 0.96, LOD 39 mg/kg); the closest
+                 optical evidence, but a different food matrix.
+      - title: Food Adulteration Testing India
+        source: Auriga Research
+        url: https://aurigaresearch.com/testing/food-testing/adulteration-testing/
+        finding: Lists Sudan dyes (HPLC-DAD) and brick dust (acid-insoluble ash) in chilli as lab-only tests, with no
+                 rapid phone equivalent.
+references:
+  - title: Fast, easy, cheap, robust and safe method of analysis of Sudan dyes in chilli pepper powder
+    source: Heliyon, 2020
+    url: https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=33088976&retmode=text&rettype=abstract
+    finding: Sudan I-IV in 24 market chilli powders needed solvent extraction plus UFLC-UV (LOD 0.02-0.04 mg/kg); a lab
+             method, not a phone scan.
+  - title: Qualitative and quantitative analysis based on digital images to determine the adulteration of ketchup
+           samples with Sudan I dye
+    source: Food Chemistry, 2020
+    url: https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=32480258&retmode=text&rettype=abstract
+    finding: Digital-image colour histograms quantified Sudan I in ketchup (R2 0.96, LOD 39 mg/kg); the closest optical
+             evidence, but a different food matrix.
+limits:
+  - Sudan dyes and brick powder are confirmed only by lab tests; a phone scan can only flag suspect colour.
+  - No published phone method detects Sudan dyes or brick powder in chilli powder yet.

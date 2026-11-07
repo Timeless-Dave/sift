@@ -1,0 +1,57 @@
+# Honey: sugar-syrup dilution has two published smartphone-image studies, so the target is
+# experimental; both are small controlled studies, not shop-aisle validation.
+id: honey
+name: Honey
+category: honey
+aliases: [honey, pure honey, raw honey]
+# Open Food Facts category tags that map a scanned barcode to this profile.
+off_category_tags: [en:honeys]
+scan:
+  modalities: [screenlight, torch, acoustic]
+  placement: Press the phone flat against the side of the honey jar.
+summary: >
+  The screen flashes colours through the jar while the front camera records what comes back, the
+  torch reading adds colour and clarity, and the sound sweep senses thickness. The pattern is
+  compared with genuine honey scanned on the same kind of phone.
+targets:
+  - id: syrup-dilution
+    kind: adulteration
+    question: Has cheap sugar syrup been mixed into the honey?
+    status: experimental
+    signals:
+      screenlight: Syrup dilution thins honey's natural colour, shifting reflectance under each screen colour.
+      torch: Diluted honey looks paler and clearer under white light.
+      acoustic: Syrup is thinner than honey, so dilution changes how sound damps through the jar.
+    likely_causes:
+      - Sugar syrup mixed in
+      - A different floral source than the references
+      - Crystallised vs liquid honey, which read very differently
+    references:
+      - title: "Artificial intelligence for honey integrity in Ghana: a feasibility study on the use of smartphone
+               images coupled with multivariate algorithms"
+        source: Smart Agricultural Technology, 2024
+        url: https://openalex.org/works/W4394013609
+        finding: Smartphone-camera images with a random forest separated authentic from sugar-syrup-spiked honey at 100%
+                 accuracy, specificity and sensitivity.
+      - title: A Controlled Proof-of-Concept Study for Quantitative Estimation of Syrup Addition in Honey Using RGB
+               Histogram Descriptors and Explainable Machine Learning
+        source: Applied Sciences, 2026
+        url: https://mdpi-res.com/d_attachment/applsci/applsci-16-08452/article_deploy/applsci-16-08452.pdf?version=1787651491
+        finding: Smartphone RGB histograms estimated 0-50% syrup in one lab-made series (PLSR R2 0.98, RMSE 2.22pp) but
+                 needs independent samples, more honey-syrup pairs and more devices.
+references:
+  - title: "Artificial intelligence for honey integrity in Ghana: a feasibility study on the use of smartphone images
+           coupled with multivariate algorithms"
+    source: Smart Agricultural Technology, 2024
+    url: https://openalex.org/works/W4394013609
+    finding: Smartphone-camera images with a random forest separated authentic from sugar-syrup-spiked honey at 100%
+             accuracy, specificity and sensitivity.
+  - title: A Controlled Proof-of-Concept Study for Quantitative Estimation of Syrup Addition in Honey Using RGB
+           Histogram Descriptors and Explainable Machine Learning
+    source: Applied Sciences, 2026
+    url: https://mdpi-res.com/d_attachment/applsci/applsci-16-08452/article_deploy/applsci-16-08452.pdf?version=1787651491
+    finding: Smartphone RGB histograms estimated 0-50% syrup in one lab-made series (PLSR R2 0.98, RMSE 2.22pp) but
+             needs independent samples, more honey-syrup pairs and more devices.
+limits:
+  - Cannot name the syrup type or percentage; that needs lab tests (NMR, isotope analysis).
+  - Needs genuine reference scans from the same phone model before it gives a match result.

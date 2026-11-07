@@ -1,0 +1,84 @@
+# Beef and minced beef: pork substitution has a published phone method; freshness has early
+# phone evidence; cultured-vs-conventional has none and stays research.
+id: beef
+name: Beef
+category: meat
+aliases: [beef, minced beef, ground beef, beef mince, steak]
+# Open Food Facts category tags that map a scanned barcode to this profile.
+off_category_tags: [en:beef, en:minced-meat, en:meats]
+scan:
+  modalities: [screenlight, torch, vibration]
+  placement: Hold the phone over the meat pack so the camera sees the meat through the film.
+summary: >
+  The screen flashes colours onto the meat while the front camera records the reflections, the
+  torch reading adds colour and texture, and the vibration reading senses firmness through the
+  pack. The pattern is compared with genuine beef scanned on the same kind of phone.
+targets:
+  - id: pork-substitution
+    kind: adulteration
+    question: Has cheaper pork been mixed into the (minced) beef?
+    status: experimental
+    signals:
+      screenlight: Pork and beef differ in myoglobin content, which absorbs each screen colour differently.
+      torch: Surface colour and fat marbling shift as pale pork is mixed into red beef.
+    likely_causes:
+      - Mixed with minced pork
+      - A different beef cut or fat ratio than the references
+      - A different packaging film tinting the colour
+    references:
+      - title: Smartphone detection of minced beef adulteration
+        source: Microchemical Journal, 2021
+        url: https://pure.ulster.ac.uk/en/publications/smartphone-detection-of-minced-beef-adulteration
+        finding: Screen light plus front-camera video with PLS predicted 10-100% pork in minced beef, R2 0.73-0.98 and
+                 RMSE 0.04-0.16 across 7 phone and condition sets.
+  - id: freshness
+    kind: freshness
+    question: Is this beef still fresh, or is it spoiling?
+    status: experimental
+    signals:
+      torch: Fresh beef is cherry-red from oxymyoglobin and turns grey-brown metmyoglobin as it spoils.
+      vibration: Spoilage softens the tissue and wets the surface, changing how the pack damps vibration.
+    likely_causes:
+      - Meat going off
+      - Vacuum-packed vs air-packed colour, which differ in fresh meat too
+      - A different cut or age than the references
+    references:
+      - title: "MeatScan v4: Automated Meat Freshness Detection via High-Resolution Deep Learning with ConvNeXt and
+               Multi-Scale Test-Time Augmentation"
+        source: Indian Journal of Computer Science and Technology, 2026
+        url: https://www.indjcst.com/archiver/archives/meat_scan_v4_automated_meat_freshness_detection_via_high_resolution_deep_learning_with_convnext_and_multi_scale_test_time_augmentation.pdf
+        finding: A ConvNeXt model on 10,517 smartphone images (beef cuts, offal, poultry) reports 100% test accuracy for
+                 fresh vs spoiled; a single-market study that still needs independent replication.
+  - id: cultured-vs-conventional
+    kind: cultured
+    question: Is this cultivated (lab-grown) beef rather than conventional beef?
+    status: research
+    signals:
+      screenlight: No published study shows screen light separating cultured from conventional beef; scans build the
+                   reference library.
+      torch: No published study shows a phone photo separating cultured from conventional beef; scans build the
+             reference library.
+    likely_causes:
+      - Genuinely cultivated meat
+      - Conventional meat from a different breed, feed or cut than the references
+      - Processing or packaging differences
+    references:
+      - title: Review of analytical methods for cell-cultivated products
+        source: UK Food Standards Agency, 2026
+        url: https://science.food.gov.uk/article/167297-review-of-analytical-methods-for-cell-cultivated-products
+        finding: The review finds no single lab method reliably authenticates cultivated meat, no validated methods
+                 exist, and no phone-based method is covered.
+references:
+  - title: Smartphone detection of minced beef adulteration
+    source: Microchemical Journal, 2021
+    url: https://pure.ulster.ac.uk/en/publications/smartphone-detection-of-minced-beef-adulteration
+    finding: Screen light plus front-camera video with PLS predicted 10-100% pork in minced beef, R2 0.73-0.98 and RMSE
+             0.04-0.16 across 7 phone and condition sets.
+  - title: Review of analytical methods for cell-cultivated products
+    source: UK Food Standards Agency, 2026
+    url: https://science.food.gov.uk/article/167297-review-of-analytical-methods-for-cell-cultivated-products
+    finding: The review finds no single lab method reliably authenticates cultivated meat, no validated methods exist,
+             and no phone-based method is covered.
+limits:
+  - Opaque trays and printed film block the view; scan where the meat shows through clear film.
+  - Needs genuine reference scans from the same phone model before it gives a match result.
