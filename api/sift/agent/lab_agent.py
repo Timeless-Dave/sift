@@ -10,12 +10,20 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 
 from ..domain import registry
 from . import guardrails as g
 from .client import MetaClient, MetaUnavailable, image_part
 
 log = logging.getLogger("sift.agent")
+
+# Offline mode understands a few navigation words.
+ADVANCE = {"next", "done", "ready", "finished", "ok", "okay"}
+BACK = {"back", "previous"}
+RETAKE = {"retake", "again", "photo", "scan"}
+NEGATIONS = {"not", "no", "nope", "yet"}
+QUESTION = {"how", "what", "when", "why", "where", "which", "should", "can"}
 
 SYSTEM = """You are the Sift Lab Agent, a careful food-testing lab partner working through a phone.
 Rules:
@@ -117,13 +125,16 @@ class LabAgent:
     def _offline_turn(self, assay: dict, current: dict, user_text: str) -> dict:
         steps = assay["protocol"]
         idx = steps.index(current)
-        words = user_text.lower()
+        # Whole words only, so "look" isn't "ok" and "photograph" isn't "photo".
+        words = set(re.findall(r"[a-z]+(?:'[a-z]+)?", user_text.lower()))
+        negated = bool(words & NEGATIONS) or any(w.endswith("n't") for w in words)
+        question = bool(words & QUESTION) or user_text.rstrip().endswith("?")
         actions = []
-        if any(w in words for w in ("next", "done", "ready", "finished", "ok")) and idx + 1 < len(steps):
+        if words & ADVANCE and not negated and not question and idx + 1 < len(steps):
             current = steps[idx + 1]
-        elif any(w in words for w in ("back", "previous")) and idx > 0:
+        elif words & BACK and idx > 0:
             current = steps[idx - 1]
-        elif any(w in words for w in ("retake", "again", "photo", "scan")):
+        elif words & RETAKE:
             current = registry.capture_step(assay)
             actions.append({"name": "open_camera", "args": {}})
         if current.get("wait_seconds"):
