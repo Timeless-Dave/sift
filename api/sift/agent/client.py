@@ -59,6 +59,9 @@ class CircuitBreaker:
 
 
 RETRY_STATUS = {429, 500, 502, 503, 504}
+# Room for Muse Spark's reasoning plus a short answer. With 300 the reasoning alone used the
+# whole budget and every reply came back empty.
+CHAT_MAX_TOKENS = 2000
 
 
 class MetaClient:
@@ -107,26 +110,31 @@ class MetaClient:
         raise MetaUnavailable(f"Meta Model API {last}")
 
     def chat(self, messages: list[dict], tools: list[dict] | None = None,
-             tool_choice: str | dict | None = None, temperature: float = 0.2, max_tokens: int = 700) -> dict:
-        body: dict = {"model": self.s.chat_model, "messages": messages,
-                      "temperature": temperature, "max_tokens": max_tokens}
+             temperature: float = 0.2, max_tokens: int = CHAT_MAX_TOKENS) -> dict:
+        """One chat completion. The Meta API only supports tool_choice "auto", so tools are offered,
+        never forced. An answer cut off before any text or tool call raises MetaUnavailable."""
+        body: dict = {"model": self.s.chat_model, "messages": messages, "temperature": temperature,
+                      "max_tokens": max_tokens, "reasoning_effort": self.s.reasoning_effort}
         if tools:
             body["tools"] = tools
-            if tool_choice:
-                body["tool_choice"] = tool_choice
+            body["tool_choice"] = "auto"
         r = self._post("/chat/completions", json=body)
         try:
-            return r.json()["choices"][0]["message"]
-        except (KeyError, IndexError, ValueError) as exc:
+            choice = r.json()["choices"][0]
+            msg = choice["message"]
+        except (KeyError, IndexError, TypeError, ValueError) as exc:
             raise MetaUnavailable("Unexpected chat response shape") from exc
+        if choice.get("finish_reason") == "length" and not msg.get("content") and not msg.get("tool_calls"):
+            raise MetaUnavailable("Model ran out of tokens before answering")
+        return msg
 
     def call_tool(self, messages: list[dict], tool: dict) -> dict:
-        """Force one structured tool call and return its parsed arguments."""
-        msg = self.chat(messages, tools=[tool],
-                        tool_choice={"type": "function", "function": {"name": tool["function"]["name"]}})
-        calls = msg.get("tool_calls") or []
+        """Offer one tool, require the model to call it, and return its parsed arguments."""
+        name = tool["function"]["name"]
+        msg = self.chat(messages, tools=[tool])
+        calls = [c for c in msg.get("tool_calls") or [] if (c.get("function") or {}).get("name") == name]
         if not calls:
-            raise MetaUnavailable("Model returned no tool call")
+            raise MetaUnavailable(f"Model did not call {name}")
         try:
             args = json.loads(calls[0]["function"]["arguments"])
         except (KeyError, json.JSONDecodeError) as exc:
