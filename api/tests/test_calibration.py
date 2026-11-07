@@ -69,6 +69,35 @@ def test_calibration_state_requires_key_when_server_does(make_client):
     assert c.get(f"/v1/calibration/{OIL}", params={"device": "x"}).status_code == 401
 
 
+def test_calibration_writes_open_by_default(client):
+    calibrate(client)  # anonymous samples + train work
+    run_id = post_card(client).json()["run_id"]
+    assert client.post(f"/v1/runs/{run_id}/truth", json={"value": 1}).status_code == 200
+    assert client.get(f"/v1/calibration/{OIL}", params={"device": "lab-phone"}).status_code == 200
+
+
+def test_protected_calibration_needs_key_for_writes_only(make_client):
+    c = make_client(SIFT_PROTECT_CALIBRATION=1, SIFT_ADMIN_TOKEN=ADMIN)
+    key = c.post("/v1/keys", json={"owner": "lab"}, headers={"X-Admin-Token": ADMIN}).json()["key"]
+    h = {"X-Sift-Key": key}
+    run_id = post_card(c).json()["run_id"]
+
+    anon = [
+        c.post("/v1/calibration/samples", json={"run_id": run_id, "known_value": 1}),
+        c.post("/v1/calibration/train", json={"assay_id": OIL, "device": "lab-phone"}),
+        c.post(f"/v1/runs/{run_id}/truth", json={"value": 1}),
+    ]
+    assert [r.status_code for r in anon] == [401, 401, 401]
+    assert all("API key" in r.json()["error"]["message"] for r in anon)
+    assert c.get(f"/v1/calibration/{OIL}", params={"device": "lab-phone"}).status_code == 200
+
+    keyed_run = post_card(c, headers=h).json()["run_id"]
+    assert c.post("/v1/calibration/samples", json={"run_id": keyed_run, "known_value": 1}, headers=h).status_code == 200
+    truth_run = post_card(c, headers=h).json()["run_id"]
+    assert c.post(f"/v1/runs/{truth_run}/truth", json={"value": 1}, headers=h).status_code == 200
+    calibrate(c, h)  # keyed train works
+
+
 def test_accuracy_is_reported_per_phone_and_per_owner(make_client):
     c = make_client(SIFT_ADMIN_TOKEN=ADMIN)
     key = c.post("/v1/keys", json={"owner": "lab"}, headers={"X-Admin-Token": ADMIN}).json()["key"]

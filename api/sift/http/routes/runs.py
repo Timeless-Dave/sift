@@ -3,7 +3,7 @@ from starlette.concurrency import run_in_threadpool
 
 from ...core.errors import NotFound, TooLarge
 from ...services.runs import Caller
-from ..deps import Container, Identity, container, identity, require_tier
+from ..deps import Container, Identity, container, identity, require_calibration_key, require_tier
 from ..schemas import ScreenlightRun, Tier, Truth
 
 router = APIRouter(tags=["runs"])
@@ -53,7 +53,7 @@ def get_run(run_id: str, who: Identity = Depends(identity), c: Container = Depen
 
 
 @router.post("/v1/runs/{run_id}/truth", summary="Record the known answer, making this a validation run")
-def set_truth(run_id: str, body: Truth, who: Identity = Depends(identity),
+def set_truth(run_id: str, body: Truth, who: Identity = Depends(require_calibration_key),
               c: Container = Depends(container)) -> dict:
     return {"ok": True, "accuracy": c.runs.set_truth(run_id, body.value, viewer=who.key_prefix)}
 

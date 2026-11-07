@@ -55,6 +55,7 @@ class Settings:
     # Empty means the in-process limiter (one worker); set to redis://... to share limits across workers.
     redis_url: str = field(default_factory=lambda: _env("SIFT_REDIS_URL"))
     require_api_key: bool = field(default_factory=lambda: _env("SIFT_REQUIRE_KEY", "0") == "1")
+    protect_calibration: bool = field(default_factory=lambda: _env("SIFT_PROTECT_CALIBRATION", "0") == "1")
     admin_token: str = field(default_factory=lambda: _env("SIFT_ADMIN_TOKEN"))
     trust_proxy: bool = field(default_factory=lambda: _env("SIFT_TRUST_PROXY", "0") == "1")
     cors_origins: tuple[str, ...] = field(

@@ -27,7 +27,8 @@ Sift will not:
 
 - **Shopper**: guided steps, a plain-language result and how sure Sift is.
 - **Researcher**: practice runs, raw features, per-phone calibration, validation runs that
-  measure accuracy, CSV and JSON export.
+  measure accuracy, CSV and JSON export. Operators can set SIFT_PROTECT_CALIBRATION=1 so
+  calibration writes and validation truth need an API key.
 - **Developers and organisations**: the same REST API with API keys. See `/docs` on a running server.
 
 ## How a result is produced
@@ -108,6 +109,7 @@ a minute after repeated failures, so an outage degrades to offline guidance inst
 - API keys are stored as SHA-256 hashes and can be revoked. Runs made with a key are visible only to that key.
 - Calibration samples, trained models and accuracy figures belong to the key that made them. A key's model
   never reads public runs, and public calibration never reaches a key's runs.
+- Set SIFT_PROTECT_CALIBRATION=1 to require an API key for calibration writes and validation truth; reads stay open.
 - The enterprise tier requires a key.
 - Admin calls use a constant-time token check.
 - Rate limits apply per IP or key, with a stricter limit on agent and voice calls.

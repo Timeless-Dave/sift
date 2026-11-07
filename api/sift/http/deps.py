@@ -99,3 +99,10 @@ def viewer(x_sift_key: str | None = Header(default=None), c: Container = Depends
 def require_tier(tier: str, who: Identity) -> None:
     if tier == "enterprise" and not who.keyed:
         raise Unauthorized("The enterprise tier needs an API key (X-Sift-Key).")
+
+
+def require_calibration_key(who: Identity = Depends(identity), c: Container = Depends(container)) -> Identity:
+    """For calibration writes: when SIFT_PROTECT_CALIBRATION=1, anonymous callers get a 401."""
+    if c.settings.protect_calibration and not who.keyed:
+        raise Unauthorized("Calibration writes need an API key (X-Sift-Key) on this server.")
+    return who
