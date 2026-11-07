@@ -33,16 +33,19 @@ CREATE TABLE IF NOT EXISTS calibration_samples (
     created REAL NOT NULL,
     known_value REAL NOT NULL,
     features TEXT NOT NULL,
-    note TEXT
+    note TEXT,
+    owner TEXT NOT NULL DEFAULT '',
+    run_id TEXT
 );
 CREATE TABLE IF NOT EXISTS models (
     assay_id TEXT NOT NULL,
     device TEXT NOT NULL,
+    owner TEXT NOT NULL DEFAULT '',
     created REAL NOT NULL,
     kind TEXT NOT NULL,
     payload TEXT NOT NULL,
     metrics TEXT NOT NULL,
-    PRIMARY KEY (assay_id, device)
+    PRIMARY KEY (assay_id, device, owner)
 );
 CREATE TABLE IF NOT EXISTS api_keys (
     key_hash TEXT PRIMARY KEY,
@@ -53,7 +56,13 @@ CREATE TABLE IF NOT EXISTS api_keys (
     calls INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS runs_assay ON runs (assay_id, created);
+CREATE INDEX IF NOT EXISTS samples_scope ON calibration_samples (assay_id, device, owner);
+CREATE UNIQUE INDEX IF NOT EXISTS samples_run ON calibration_samples (run_id) WHERE run_id IS NOT NULL;
 """
+
+# Calibration samples and models belong to an owner: the API key prefix that made them, or ''
+# for the public pool. One owner's calibration is never applied to another owner's runs.
+PUBLIC = ""
 
 
 class Store:
@@ -63,6 +72,7 @@ class Store:
             cols = {r[1] for r in c.execute("PRAGMA table_info(api_keys)")}
             if cols and "key_hash" not in cols:  # v0.1 stored plaintext keys; drop them
                 c.execute("DROP TABLE api_keys")
+            _migrate_owner(c)
             c.executescript(SCHEMA)
 
     @contextmanager
@@ -120,49 +130,60 @@ class Store:
             rows = c.execute(q, (*args, limit)).fetchall()
         return [_run_row(r) for r in rows]
 
-    def validation_runs(self, assay_id: str) -> list[dict]:
+    def validation_runs(self, assay_id: str, viewer: str | None = None) -> list[dict]:
+        """Validation runs made by `viewer` (a key prefix), or public ones when viewer is None."""
         with self._conn() as c:
             rows = c.execute(
-                "SELECT * FROM runs WHERE assay_id=? AND truth IS NOT NULL AND status='ok'", (assay_id,)
+                "SELECT * FROM runs WHERE assay_id=? AND truth IS NOT NULL AND status='ok' AND api_key IS ?",
+                (assay_id, viewer),
             ).fetchall()
         return [_run_row(r) for r in rows]
 
     # Calibration ----------------------------------------------------------
-    def add_sample(self, assay_id: str, device: str, known_value: float, features: Any, note: str = "") -> str:
+    def add_sample(self, assay_id: str, device: str, known_value: float, features: Any, note: str = "",
+                   owner: str = PUBLIC, run_id: str | None = None) -> str:
         sid = uuid.uuid4().hex[:12]
         with self._conn() as c:
             c.execute(
-                "INSERT INTO calibration_samples VALUES (?,?,?,?,?,?,?)",
-                (sid, assay_id, device, time.time(), known_value, json.dumps(features), note),
+                "INSERT INTO calibration_samples (id, assay_id, device, created, known_value, features, note, owner,"
+                " run_id) VALUES (?,?,?,?,?,?,?,?,?)",
+                (sid, assay_id, device, time.time(), known_value, json.dumps(features), note, owner, run_id),
             )
         return sid
 
-    def samples(self, assay_id: str, device: str) -> list[dict]:
+    def is_calibration_run(self, run_id: str) -> bool:
+        with self._conn() as c:
+            return c.execute("SELECT 1 FROM calibration_samples WHERE run_id=?", (run_id,)).fetchone() is not None
+
+    def samples(self, assay_id: str, device: str, owner: str = PUBLIC) -> list[dict]:
         with self._conn() as c:
             rows = c.execute(
-                "SELECT * FROM calibration_samples WHERE assay_id=? AND device=? ORDER BY created",
-                (assay_id, device),
+                "SELECT * FROM calibration_samples WHERE assay_id=? AND device=? AND owner=? ORDER BY created",
+                (assay_id, device, owner),
             ).fetchall()
         return [{**dict(r), "features": json.loads(r["features"])} for r in rows]
 
-    def save_model(self, assay_id: str, device: str, kind: str, payload: dict, metrics: dict) -> None:
+    def save_model(self, assay_id: str, device: str, kind: str, payload: dict, metrics: dict,
+                   owner: str = PUBLIC) -> None:
         with self._conn() as c:
             c.execute(
-                "INSERT OR REPLACE INTO models VALUES (?,?,?,?,?,?)",
-                (assay_id, device, time.time(), kind, json.dumps(payload), json.dumps(metrics)),
+                "INSERT OR REPLACE INTO models (assay_id, device, owner, created, kind, payload, metrics)"
+                " VALUES (?,?,?,?,?,?,?)",
+                (assay_id, device, owner, time.time(), kind, json.dumps(payload), json.dumps(metrics)),
             )
 
-    def get_model(self, assay_id: str, device: str) -> dict | None:
+    def get_model(self, assay_id: str, device: str, owner: str = PUBLIC) -> dict | None:
         with self._conn() as c:
-            row = c.execute("SELECT * FROM models WHERE assay_id=? AND device=?", (assay_id, device)).fetchone()
+            row = c.execute("SELECT * FROM models WHERE assay_id=? AND device=? AND owner=?",
+                            (assay_id, device, owner)).fetchone()
         if not row:
             return None
         return {**dict(row), "payload": json.loads(row["payload"]), "metrics": json.loads(row["metrics"])}
 
-    def list_models(self, assay_id: str) -> list[dict]:
+    def list_models(self, assay_id: str, owner: str = PUBLIC) -> list[dict]:
         with self._conn() as c:
-            rows = c.execute("SELECT assay_id, device, created, kind, metrics FROM models WHERE assay_id=?",
-                             (assay_id,)).fetchall()
+            rows = c.execute("SELECT assay_id, device, created, kind, metrics FROM models WHERE assay_id=? AND owner=?",
+                             (assay_id, owner)).fetchall()
         return [{**dict(r), "metrics": json.loads(r["metrics"])} for r in rows]
 
     # API keys -------------------------------------------------------------
@@ -180,6 +201,21 @@ class Store:
         with self._conn() as c:
             cur = c.execute("UPDATE api_keys SET revoked=1 WHERE prefix=?", (prefix,))
         return cur.rowcount > 0
+
+
+def _migrate_owner(c: sqlite3.Connection) -> None:
+    """v0.2 databases kept one calibration pool per device label. Existing rows become public."""
+    sample_cols = {r[1] for r in c.execute("PRAGMA table_info(calibration_samples)")}
+    if sample_cols and "owner" not in sample_cols:
+        c.execute("ALTER TABLE calibration_samples ADD COLUMN owner TEXT NOT NULL DEFAULT ''")
+        c.execute("ALTER TABLE calibration_samples ADD COLUMN run_id TEXT")
+    model_cols = {r[1] for r in c.execute("PRAGMA table_info(models)")}
+    if model_cols and "owner" not in model_cols:  # the primary key changes, so rebuild the table
+        c.execute("ALTER TABLE models RENAME TO models_v02")
+        c.executescript(SCHEMA)
+        c.execute("INSERT INTO models (assay_id, device, owner, created, kind, payload, metrics)"
+                  " SELECT assay_id, device, '', created, kind, payload, metrics FROM models_v02")
+        c.execute("DROP TABLE models_v02")
 
 
 def _run_row(row: sqlite3.Row) -> dict:

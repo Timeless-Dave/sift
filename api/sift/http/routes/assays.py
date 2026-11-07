@@ -1,9 +1,10 @@
 from fastapi import APIRouter, Depends
 from fastapi.responses import Response
 
+from ...data.store import PUBLIC
 from ...domain import registry
 from ...vision import card
-from ..deps import Container, container
+from ..deps import Container, container, viewer
 
 router = APIRouter(tags=["assays"])
 
@@ -11,20 +12,20 @@ PUBLIC_FIELDS = ("id", "name", "food", "question", "status", "method", "instrume
 
 
 @router.get("/v1/assays", summary="List every test, runnable and planned")
-def list_assays(c: Container = Depends(container)) -> list[dict]:
+def list_assays(who: str | None = Depends(viewer), c: Container = Depends(container)) -> list[dict]:
     return [{k: a.get(k) for k in PUBLIC_FIELDS} | {
         "runnable": registry.is_runnable(a),
-        "accuracy": c.runs.accuracy(a) if registry.is_runnable(a) else None,
+        "accuracy": c.runs.accuracy(a, who) if registry.is_runnable(a) else None,
     } for a in registry.load_all().values()]
 
 
 @router.get("/v1/assays/{assay_id}", summary="One test with its protocol, method, sources and accuracy")
-def get_assay(assay_id: str, c: Container = Depends(container)) -> dict:
+def get_assay(assay_id: str, who: str | None = Depends(viewer), c: Container = Depends(container)) -> dict:
     a = registry.get(assay_id)
     out = dict(a) | {"runnable": registry.is_runnable(a)}
     if registry.is_runnable(a):
-        out["accuracy"] = c.runs.accuracy(a)
-        out["models"] = c.store.list_models(assay_id)
+        out["accuracy"] = c.runs.accuracy(a, who)
+        out["models"] = c.store.list_models(assay_id, who or PUBLIC)
     return out
 
 

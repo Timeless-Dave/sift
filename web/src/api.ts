@@ -5,7 +5,8 @@ export type Verdict = "pass" | "caution" | "flag" | "unknown";
 export interface Reference { title: string; source: string; url: string; finding: string }
 export interface Step { id: string; title: string; instruction: string; capture?: "card" | "screenlight"; wait_seconds?: number }
 export interface Band { max: number; label: string; verdict: Verdict }
-export interface Accuracy { n: number; summary: string; mae?: number; agreement?: number }
+export interface Score { n: number; summary: string; mae?: number; agreement?: number }
+export interface Accuracy extends Score { by_device?: Record<string, Score> }
 
 export interface Assay {
   id: string; name: string; food: string; question?: string; status: string; method: string;

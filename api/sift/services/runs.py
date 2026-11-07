@@ -15,7 +15,7 @@ from ..agent.lab_agent import LabAgent
 from ..core.config import Settings
 from ..core.errors import Conflict, InvalidInput, NotFound, TooLarge
 from ..core.security import sniff_image
-from ..data.store import Store
+from ..data.store import PUBLIC, Store
 from ..domain import registry
 from ..vision import card, colorimetric, screenlight
 
@@ -29,6 +29,10 @@ class Caller:
     device: str
     instrument: str
     key_prefix: str | None = None
+
+    @property
+    def owner(self) -> str:
+        return self.key_prefix or PUBLIC
 
 
 def _decode(raw: bytes, limit: int) -> np.ndarray:
@@ -84,7 +88,7 @@ class RunService:
         assay = registry.get(assay_id)
         registry.require_runnable(assay, "colorimetric")
         img = _decode(raw, self.s.limits.max_image_bytes)
-        model = self.store.get_model(assay_id, who.device)
+        model = self.store.get_model(assay_id, who.device, who.owner)
 
         sam_mask, jpeg = None, None
         try:
@@ -112,24 +116,21 @@ class RunService:
         assay = registry.get(assay_id)
         registry.require_runnable(assay, "screenlight")
         validate_frames(frames, assay, self.s)
-        model = self.store.get_model(assay_id, who.device)
+        model = self.store.get_model(assay_id, who.device, who.owner)
         result = screenlight.analyze(frames, assay, model)
         return self._finish(assay, result, who, result.get("features", {}).get("vector"))
 
     # Accuracy -------------------------------------------------------------------------------
-    def accuracy(self, assay: dict) -> dict:
-        runs = self.store.validation_runs(assay["id"])
-        if not runs:
-            return {"n": 0, "summary": "Not measured yet: no runs with known answers."}
-        numeric = [r for r in runs if r["result"].get("value") is not None]
-        if numeric:
-            err = [abs(r["result"]["value"] - r["truth"]) for r in numeric]
-            mae = float(np.mean(err))
-            return {"n": len(numeric), "mae": round(mae, 3), "unit": assay["analysis"].get("unit"),
-                    "summary": f"Mean absolute error {mae:.2f} over {len(numeric)} known samples."}
-        agree = [(r["result"]["verdict"] == "flag") == (r["truth"] > 0) for r in runs]
-        return {"n": len(runs), "agreement": round(float(np.mean(agree)), 3),
-                "summary": f"Agreed with the known answer in {sum(agree)} of {len(runs)} samples."}
+    def accuracy(self, assay: dict, viewer: str | None = None) -> dict:
+        """Accuracy from validation runs with known answers, overall and per phone. Public callers
+        see public runs only; a keyed caller sees its own runs only."""
+        runs = self.store.validation_runs(assay["id"], viewer)
+        out = _score(runs, assay)
+        by_device: dict[str, list[dict]] = {}
+        for r in runs:
+            by_device.setdefault(r["device"] or "unknown", []).append(r)
+        out["by_device"] = {d: _score(rs, assay) for d, rs in sorted(by_device.items())}
+        return out
 
     def set_truth(self, run_id: str, value: float, viewer: str | None = None) -> dict:
         run = self.store.get_run(run_id, viewer=viewer)
@@ -137,8 +138,23 @@ class RunService:
             raise NotFound("No such run.")
         if run["status"] != "ok":
             raise Conflict("Only runs with a result can be validation runs.")
+        if self.store.is_calibration_run(run_id):
+            raise Conflict("This run is a calibration sample. Validate with a different sample.")
         self.store.set_truth(run_id, value)
-        return self.accuracy(registry.get(run["assay_id"]))
+        return self.accuracy(registry.get(run["assay_id"]), viewer)
+
+
+def _score(runs: list[dict], assay: dict) -> dict:
+    if not runs:
+        return {"n": 0, "summary": "Not measured yet: no runs with known answers."}
+    numeric = [r for r in runs if r["result"].get("value") is not None]
+    if numeric:
+        mae = float(np.mean([abs(r["result"]["value"] - r["truth"]) for r in numeric]))
+        return {"n": len(numeric), "mae": round(mae, 3), "unit": assay["analysis"].get("unit"),
+                "summary": f"Mean absolute error {mae:.2f} over {len(numeric)} known samples."}
+    agree = [(r["result"]["verdict"] == "flag") == (r["truth"] > 0) for r in runs]
+    return {"n": len(runs), "agreement": round(float(np.mean(agree)), 3),
+            "summary": f"Agreed with the known answer in {sum(agree)} of {len(runs)} samples."}
 
 
 class CalibrationService:
@@ -146,6 +162,7 @@ class CalibrationService:
         self.store = store
 
     def add_sample(self, run_id: str, known: float, note: str, viewer: str | None = None) -> int:
+        """Samples go to the run's owner: a keyed run can only be seen, and so only added, by its key."""
         run = self.store.get_run(run_id, viewer=viewer)
         if not run:
             raise NotFound("No such run.")
@@ -153,19 +170,22 @@ class CalibrationService:
             raise Conflict("Only runs that passed the quality checks can be calibration samples.")
         if run["truth"] is not None:
             raise Conflict("This run is a validation run. Use a different sample for calibration.")
+        if self.store.is_calibration_run(run_id):
+            raise Conflict("This run is already a calibration sample.")
         assay = registry.get(run["assay_id"])
         feats = run["features"]
         if assay["method"] == "colorimetric":
             feats = feats[assay["analysis"]["feature"]]
         device = run["device"] or "unknown"
-        self.store.add_sample(run["assay_id"], device, known, feats, note[:200])
-        return len(self.store.samples(run["assay_id"], device))
+        owner = viewer or PUBLIC
+        self.store.add_sample(run["assay_id"], device, known, feats, note[:200], owner=owner, run_id=run_id)
+        return len(self.store.samples(run["assay_id"], device, owner))
 
-    def train(self, assay_id: str, device: str) -> dict:
+    def train(self, assay_id: str, device: str, owner: str = PUBLIC) -> dict:
         assay = registry.get(assay_id)
         if not registry.is_runnable(assay):
             raise Conflict(f"'{assay['name']}' isn't runnable yet.")
-        samples = self.store.samples(assay_id, device)
+        samples = self.store.samples(assay_id, device, owner)
         try:
             if assay["method"] == "screenlight":
                 payload, metrics = screenlight.train(samples)
@@ -177,12 +197,12 @@ class CalibrationService:
                            "validation": "calibration points only; validate with separate known samples"}
         except ValueError as exc:
             raise InvalidInput(str(exc)) from exc
-        self.store.save_model(assay_id, device, kind, payload, metrics)
+        self.store.save_model(assay_id, device, kind, payload, metrics, owner)
         return {"kind": kind, "metrics": metrics}
 
-    def state(self, assay_id: str, device: str) -> dict:
+    def state(self, assay_id: str, device: str, owner: str = PUBLIC) -> dict:
         registry.get(assay_id)
-        model = self.store.get_model(assay_id, device)
+        model = self.store.get_model(assay_id, device, owner)
         return {"samples": [{"known_value": s["known_value"], "created": s["created"]}
-                            for s in self.store.samples(assay_id, device)],
+                            for s in self.store.samples(assay_id, device, owner)],
                 "model": {k: model[k] for k in ("kind", "created", "metrics")} if model else None}
