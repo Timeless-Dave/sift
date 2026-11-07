@@ -11,6 +11,11 @@ DeviceLabel = Field(default="unknown", min_length=1, max_length=80, pattern=r"^[
 AssayId = Field(min_length=1, max_length=64, pattern=r"^[a-z0-9-]+$")
 
 
+def normalize_device(device: str | None) -> str:
+    """One spelling for device labels: strip whitespace, default to 'unknown'."""
+    return (device or "").strip() or "unknown"
+
+
 class ScreenlightRun(BaseModel):
     assay_id: str = AssayId
     device: str = DeviceLabel

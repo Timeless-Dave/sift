@@ -1,10 +1,10 @@
-from fastapi import APIRouter, Depends, File, Form, UploadFile
+from fastapi import APIRouter, Depends, File, Form, Path, Query, UploadFile
 from starlette.concurrency import run_in_threadpool
 
 from ...core.errors import NotFound, TooLarge
 from ...services.runs import Caller
 from ..deps import Container, Identity, container, identity, require_calibration_key, require_tier
-from ..schemas import ScreenlightRun, Tier, Truth
+from ..schemas import ScreenlightRun, Tier, Truth, normalize_device
 
 router = APIRouter(tags=["runs"])
 
@@ -27,7 +27,7 @@ async def run_card(assay_id: str = Form(..., min_length=1, max_length=64, patter
     raw = await _read_capped(image, c.settings.limits.max_image_bytes)
     # Image work and model calls block; keep them off the event loop.
     return await run_in_threadpool(c.runs.run_card, assay_id, raw,
-                                   Caller(tier, device.strip() or "unknown", instrument, who.key_prefix))
+                                   Caller(tier, normalize_device(device), instrument, who.key_prefix))
 
 
 @router.post("/v1/runs/screenlight", summary="Run a screen-light scan from per-colour camera means")
@@ -35,17 +35,19 @@ def run_screenlight(body: ScreenlightRun, who: Identity = Depends(identity),
                     c: Container = Depends(container)) -> dict:
     require_tier(body.tier, who)
     return c.runs.run_screenlight(body.assay_id, body.frames,
-                                  Caller(body.tier, body.device, body.instrument, who.key_prefix))
+                                  Caller(body.tier, normalize_device(body.device), body.instrument, who.key_prefix))
 
 
 @router.get("/v1/runs", summary="Recent runs")
-def list_runs(assay_id: str | None = None, limit: int = 50, who: Identity = Depends(identity),
+def list_runs(assay_id: str | None = Query(default=None, min_length=1, max_length=64, pattern=r"^[a-z0-9-]+$"),
+              limit: int = 50, who: Identity = Depends(identity),
               c: Container = Depends(container)) -> list[dict]:
     return c.store.list_runs(assay_id, max(1, min(limit, 200)), viewer=who.key_prefix)
 
 
 @router.get("/v1/runs/{run_id}", summary="One run")
-def get_run(run_id: str, who: Identity = Depends(identity), c: Container = Depends(container)) -> dict:
+def get_run(run_id: str = Path(min_length=6, max_length=32, pattern=r"^[a-f0-9]+$"),
+            who: Identity = Depends(identity), c: Container = Depends(container)) -> dict:
     run = c.store.get_run(run_id, viewer=who.key_prefix)
     if not run:
         raise NotFound("No such run.")
@@ -53,7 +55,8 @@ def get_run(run_id: str, who: Identity = Depends(identity), c: Container = Depen
 
 
 @router.post("/v1/runs/{run_id}/truth", summary="Record the known answer, making this a validation run")
-def set_truth(run_id: str, body: Truth, who: Identity = Depends(require_calibration_key),
+def set_truth(body: Truth, run_id: str = Path(min_length=6, max_length=32, pattern=r"^[a-f0-9]+$"),
+              who: Identity = Depends(require_calibration_key),
               c: Container = Depends(container)) -> dict:
     return {"ok": True, "accuracy": c.runs.set_truth(run_id, body.value, viewer=who.key_prefix)}
 

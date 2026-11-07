@@ -6,6 +6,7 @@ from __future__ import annotations
 import math
 import operator
 import re
+from typing import Any
 
 import numpy as np
 
@@ -82,8 +83,17 @@ def band_for(value: float, bands: list[dict]) -> dict:
 def fit_curve(points: list[tuple[float, float]]) -> dict:
     """Monotone calibration curve: feature value -> concentration, by linear interpolation
     between the mean feature at each known concentration."""
-    by_conc: dict[float, list[float]] = {}
+    clean: list[tuple[float, float]] = []
     for feat, conc in points:
+        try:
+            f, c = float(feat), float(conc)
+        except (TypeError, ValueError):
+            raise ValueError("Calibration samples must be numbers. Add them again.") from None
+        if not math.isfinite(f) or not math.isfinite(c):
+            raise ValueError("Calibration samples must be finite numbers. Add them again.")
+        clean.append((f, c))
+    by_conc: dict[float, list[float]] = {}
+    for feat, conc in clean:
         by_conc.setdefault(conc, []).append(feat)
     concs = sorted(by_conc)
     if len(concs) < 3:
@@ -107,6 +117,34 @@ def apply_curve(curve: dict, x: float) -> tuple[float, bool]:
     xs, ys = curve["x"], curve["y"]
     inside = xs[0] <= x <= xs[-1]
     return float(np.interp(x, xs, ys)), inside
+
+
+def _valid_curve(payload: Any) -> bool:
+    """A stored curve fits only when it has matching, finite, increasing x/y points."""
+    if not isinstance(payload, dict):
+        return False
+    xs, ys = payload.get("x"), payload.get("y")
+    if not isinstance(xs, (list, tuple)) or not isinstance(ys, (list, tuple)):
+        return False
+    if len(xs) != len(ys) or len(xs) < 2:
+        return False
+    try:
+        xf = [float(v) for v in xs]
+        yf = [float(v) for v in ys]
+    except (TypeError, ValueError):
+        return False
+    if not all(math.isfinite(v) for v in xf + yf):
+        return False
+    if any(b - a <= 1e-9 for a, b in zip(xf, xf[1:], strict=False)):
+        return False
+    noise = payload.get("noise", 0)
+    if noise is not None:
+        try:
+            if not math.isfinite(float(noise)):
+                return False
+        except (TypeError, ValueError):
+            return False
+    return True
 
 
 def analyze(image_bgr: np.ndarray, assay: dict, model: dict | None,
@@ -139,24 +177,25 @@ def analyze(image_bgr: np.ndarray, assay: dict, model: dict | None,
         return out
 
     value = feats[spec["feature"]]
-    if model and model["kind"] == "curve":
+    if model and model.get("kind") == "curve" and _valid_curve(model.get("payload")):
         conc, inside = apply_curve(model["payload"], value)
-        band = band_for(conc, spec["bands"])
-        noise = model["payload"].get("noise", 0) or 0.0
-        span = (max(model["payload"]["x"]) - min(model["payload"]["x"])) or 1.0
-        confidence = max(0.05, min(0.97, 1 - 2 * noise / span - (0 if inside else 0.35)))
-        out.update(status="ok", mode="calibrated", value=round(conc, 3), unit=spec["unit"],
-                   label=band["label"], verdict=band["verdict"], confidence=round(confidence, 2),
-                   in_range=inside, model=model["metrics"])
-    else:
-        rule = spec["qualitative"]
-        positive = eval_rule(rule["rule"], feats)
-        # Distance from the decision boundary of the first clause gives a rough confidence.
-        key, _, thr = _CLAUSE.match(rule["rule"].split(" and ")[0]).groups()
-        margin = abs(float(feats[key]) - float(thr))
-        confidence = max(0.3, min(0.9, 0.5 + margin / 30))
-        out.update(status="ok", mode="qualitative", value=None, unit=None,
-                   label=rule["positive"] if positive else rule["negative"],
-                   verdict="flag" if positive else "pass", confidence=round(confidence, 2),
-                   rule=rule["rule"])
+        if math.isfinite(conc):
+            band = band_for(conc, spec["bands"])
+            noise = model["payload"].get("noise", 0) or 0.0
+            span = (max(model["payload"]["x"]) - min(model["payload"]["x"])) or 1.0
+            confidence = max(0.05, min(0.97, 1 - 2 * noise / span - (0 if inside else 0.35)))
+            out.update(status="ok", mode="calibrated", value=round(conc, 3), unit=spec["unit"],
+                       label=band["label"], verdict=band["verdict"], confidence=round(confidence, 2),
+                       in_range=inside, model=model.get("metrics", {}))
+            return out
+    rule = spec["qualitative"]
+    positive = eval_rule(rule["rule"], feats)
+    # Distance from the decision boundary of the first clause gives a rough confidence.
+    key, _, thr = _CLAUSE.match(rule["rule"].split(" and ")[0]).groups()
+    margin = abs(float(feats[key]) - float(thr))
+    confidence = max(0.3, min(0.9, 0.5 + margin / 30))
+    out.update(status="ok", mode="qualitative", value=None, unit=None,
+               label=rule["positive"] if positive else rule["negative"],
+               verdict="flag" if positive else "pass", confidence=round(confidence, 2),
+               rule=rule["rule"])
     return out

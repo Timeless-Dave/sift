@@ -15,6 +15,7 @@ from .. import __version__
 from ..core.config import Settings, get_settings
 from ..core.errors import SiftError
 from ..core.logging import request_id, setup_logging
+from ..domain import registry
 from .deps import Container
 from .routes import admin, agent, assays, calibration, runs
 
@@ -36,6 +37,8 @@ def _error(status: int, code: str, message: str, headers: dict | None = None) ->
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or get_settings()
+    settings.validate()
+    registry.load_all()
     setup_logging()
     app = FastAPI(title="Sift Lab API", version=__version__,
                   description="Run food-fraud screening assays from a phone camera or the Sift device. "
