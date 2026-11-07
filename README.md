@@ -117,7 +117,9 @@ a minute after repeated failures, so an outage degrades to offline guidance inst
 **In deployment.** The API container runs as a non-root user on a read-only filesystem. nginx sends a
 strict Content-Security-Policy and permits the camera and microphone only for the app itself.
 
-The rate limiter is in-process, so run one API worker per instance; move it to Redis before scaling out.
+Rate limiting is in-process by default, so keep one API worker per instance; set `SIFT_REDIS_URL`
+to share a Redis-backed limiter across workers. If Redis is unreachable the API fails open to the
+in-process limiter.
 
 ## Run it
 

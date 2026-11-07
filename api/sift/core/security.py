@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import logging
 import math
 import secrets
 import threading
@@ -11,6 +12,8 @@ import time
 from collections import deque
 
 from .errors import Forbidden, InvalidInput, RateLimited
+
+log = logging.getLogger("sift.security")
 
 KEY_PREFIX = "sift_"
 
@@ -54,6 +57,65 @@ class RateLimiter:
             q.append(now)
             if len(self._hits) > 50_000:  # bound memory under abuse
                 self._hits = {k: v for k, v in self._hits.items() if v and now - v[-1] <= self.window}
+
+
+# Sliding window over a sorted set, atomically: drop hits older than the window, count the
+# rest, and record the new hit only when under the limit. Returns {count, retry_after}.
+_WINDOW_SCRIPT = """
+local key = KEYS[1]
+local now = tonumber(ARGV[1])
+local window = tonumber(ARGV[2])
+local limit = tonumber(ARGV[3])
+local member = ARGV[4]
+redis.call('ZREMRANGEBYSCORE', key, 0, now - window)
+local count = redis.call('ZCARD', key)
+if count >= limit then
+    local old = redis.call('ZRANGE', key, 0, 0, 'WITHSCORES')
+    local retry = 1
+    if #old == 2 then
+        retry = math.ceil(old[2] + window - now)
+        if retry < 1 then retry = 1 end
+    end
+    return {count, retry}
+end
+redis.call('ZADD', key, now, member)
+redis.call('PEXPIRE', key, math.ceil(window * 1000) + 1000)
+return {count + 1, 0}
+"""
+
+
+class RedisRateLimiter(RateLimiter):
+    """Sliding window shared across workers via Redis. Fails open to the in-process limiter."""
+
+    def __init__(self, client, window: float = 60.0):
+        super().__init__(window)
+        self._client = client
+        self._warned = False
+
+    @classmethod
+    def from_url(cls, url: str, window: float = 60.0) -> RedisRateLimiter:
+        import redis  # lazy: the package is optional, only needed when SIFT_REDIS_URL is set
+
+        return cls(redis.from_url(url, socket_connect_timeout=2, socket_timeout=2), window)
+
+    def hit(self, bucket: str, identity: str, limit: int) -> None:
+        if limit <= 0:
+            return
+        now = time.time()  # wall clock: monotonic clocks are not comparable across workers
+        member = f"{now:.6f}:{secrets.token_hex(4)}"
+        try:
+            _, retry = self._client.eval(_WINDOW_SCRIPT, 1, f"sift:rl:{bucket}:{identity}", now, self.window,
+                                         limit, member)
+        except Exception as exc:  # Redis down: stay up on the in-process window, warn once
+            with self._lock:
+                warned, self._warned = self._warned, True
+            if not warned:
+                log.warning("Redis unavailable; failing open to the in-process rate limiter (%s).", type(exc).__name__)
+            super().hit(bucket, identity, limit)
+            return
+        if retry:
+            retry = int(retry)
+            raise RateLimited(f"Too many requests. Try again in {retry} seconds.", retry_after=retry)
 
 
 _IMAGE_MAGIC = (

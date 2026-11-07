@@ -11,5 +11,5 @@ USER sift
 VOLUME /data
 EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=3s CMD python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health').status==200 else 1)"
-# One worker: the rate limiter is in-process. Scale with replicas plus a shared limiter.
+# One worker by default; with SIFT_REDIS_URL set the limiter is shared, so --workers can scale up.
 CMD ["uvicorn", "sift.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1", "--proxy-headers"]

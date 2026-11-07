@@ -8,12 +8,21 @@ services:
       SIFT_ENV: production
       SIFT_TRUST_PROXY: "1"
       SIFT_CORS: http://localhost:8080
+      SIFT_REDIS_URL: redis://redis:6379/0
     volumes:
       - sift-data:/data
     restart: unless-stopped
     read_only: true
     tmpfs: [/tmp]
     security_opt: ["no-new-privileges:true"]
+
+  # Optional rate-limit store: no published port, reachable only by the api service.
+  # Persistence is off (limits are ephemeral) so the read-only filesystem is fine.
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    read_only: true
+    restart: unless-stopped
 
   web:
     build: ./web
