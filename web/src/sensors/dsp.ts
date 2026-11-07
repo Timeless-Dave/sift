@@ -208,13 +208,17 @@ export const CLIP_LEVEL = 250;
 /** The fields rgbStats needs; ImageData satisfies this, as do test doubles. */
 export interface ImageLike { readonly data: ArrayLike<number>; readonly width: number; readonly height: number }
 
-function centreRect(image: ImageLike): { x0: number; y0: number; w: number; h: number } {
+function assertImage(image: ImageLike): void {
   if (!Number.isInteger(image.width) || !Number.isInteger(image.height) || image.width < 1 || image.height < 1) {
     throw new RangeError(`bad image size ${image.width}x${image.height}`);
   }
   if (image.data.length < image.width * image.height * 4) {
     throw new RangeError("pixel data is shorter than width*height*4");
   }
+}
+
+function centreRect(image: ImageLike): { x0: number; y0: number; w: number; h: number } {
+  assertImage(image);
   const w = Math.max(1, Math.floor(image.width * CENTRE_FRACTION));
   const h = Math.max(1, Math.floor(image.height * CENTRE_FRACTION));
   return { x0: Math.floor((image.width - w) / 2), y0: Math.floor((image.height - h) / 2), w, h };
@@ -273,4 +277,169 @@ export function rgbStatsFromAccumulator(acc: RgbAccumulator): RGBStats {
 /** Centre-region RGB stats of one frame: mean/std per channel (sRGB 0..1), clipped fraction. */
 export function rgbStatsFromImageData(image: ImageLike): RGBStats {
   return rgbStatsFromAccumulator(addImageDataToAccumulator(createRgbAccumulator(), image));
+}
+
+/** Mean colour of the whole frame, sRGB 0..1 (contact mode has no centre crop: the lens is covered). */
+export function meanRgbFullFrame(image: ImageLike): RGB {
+  assertImage(image);
+  let r = 0, g = 0, b = 0;
+  const n = image.width * image.height;
+  for (let p = 0; p < n; p++) { r += image.data[p * 4]; g += image.data[p * 4 + 1]; b += image.data[p * 4 + 2]; }
+  return [r / n / 255, g / n / 255, b / n / 255];
+}
+
+/** Fraction of all frame pixels with any channel at or above CLIP_LEVEL. */
+export function clippedFraction(image: ImageLike): number {
+  assertImage(image);
+  let clipped = 0;
+  const n = image.width * image.height;
+  for (let p = 0; p < n; p++) {
+    if (image.data[p * 4] >= CLIP_LEVEL || image.data[p * 4 + 1] >= CLIP_LEVEL || image.data[p * 4 + 2] >= CLIP_LEVEL) {
+      clipped++;
+    }
+  }
+  return clipped / n;
+}
+
+/**
+ * Brightness-weighted centroid of the full frame (the torch side in contact mode).
+ * Falls back to the frame centre when the frame is black, so callers always get a point.
+ */
+export function brightnessCentroid(image: ImageLike): { cx: number; cy: number } {
+  assertImage(image);
+  let wsum = 0, xsum = 0, ysum = 0;
+  for (let y = 0; y < image.height; y++) {
+    const row = y * image.width * 4;
+    for (let x = 0; x < image.width; x++) {
+      const i = row + x * 4;
+      const b = image.data[i] + image.data[i + 1] + image.data[i + 2];
+      wsum += b; xsum += x * b; ysum += y * b;
+    }
+  }
+  if (wsum === 0) return { cx: (image.width - 1) / 2, cy: (image.height - 1) / 2 };
+  return { cx: xsum / wsum, cy: ysum / wsum };
+}
+
+/**
+ * Mean sRGB colour in nRings concentric rings of equal width around (cx, cy), out to the
+ * farthest corner so every pixel lands in exactly one ring. Empty rings report black.
+ */
+export function ringProfile(image: ImageLike, cx: number, cy: number, nRings: number): RGB[] {
+  assertImage(image);
+  if (!Number.isInteger(nRings) || nRings < 1) throw new RangeError(`nRings must be >= 1, got ${nRings}`);
+  if (!Number.isFinite(cx) || !Number.isFinite(cy)) throw new RangeError(`centroid must be finite, got ${cx},${cy}`);
+  const maxR = Math.max(
+    Math.hypot(cx, cy), Math.hypot(cx - (image.width - 1), cy),
+    Math.hypot(cx, cy - (image.height - 1)), Math.hypot(cx - (image.width - 1), cy - (image.height - 1)),
+  );
+  const width = maxR / nRings;
+  const sumR = new Float64Array(nRings), sumG = new Float64Array(nRings), sumB = new Float64Array(nRings);
+  const count = new Float64Array(nRings);
+  for (let y = 0; y < image.height; y++) {
+    const row = y * image.width * 4;
+    for (let x = 0; x < image.width; x++) {
+      const ring = width > 0 ? Math.min(nRings - 1, Math.floor(Math.hypot(x - cx, y - cy) / width)) : 0;
+      const i = row + x * 4;
+      sumR[ring] += image.data[i]; sumG[ring] += image.data[i + 1]; sumB[ring] += image.data[i + 2];
+      count[ring]++;
+    }
+  }
+  const out: RGB[] = [];
+  for (let r = 0; r < nRings; r++) {
+    out.push(count[r] > 0 ? [sumR[r] / count[r] / 255, sumG[r] / count[r] / 255, sumB[r] / count[r] / 255] : [0, 0, 0]);
+  }
+  return out;
+}
+
+function median(values: number[]): number {
+  if (values.length === 0) return 0;
+  const s = [...values].sort((a, b) => a - b);
+  const m = s.length >> 1;
+  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+}
+
+export interface BubbleFrontOptions {
+  /** Share of frame width kept as the centre column band (default 0.5). */
+  bandFraction?: number;
+  /** Threshold is median + k * MAD of the row profile (default 3). */
+  k?: number;
+  /** Absolute floor for the threshold in grey levels (default 3): calmer frames report no front. */
+  minDiff?: number;
+}
+
+/**
+ * Bubble front height from one frame pair: absolute difference, row-wise mean over a centre
+ * column band, adaptive threshold (median + k*MAD, at least minDiff). Returns the highest
+ * row above threshold as a fraction of frame height from the bottom (0 bottom, 1 top),
+ * or null when no row moves enough to be the bubble. prev and curr are row-major grey
+ * levels (0..255) of length width*height.
+ */
+export function bubbleFront(
+  prev: ArrayLike<number>, curr: ArrayLike<number>, width: number, height: number, opts: BubbleFrontOptions = {},
+): number | null {
+  const { bandFraction = 0.5, k = 3, minDiff = 3 } = opts;
+  if (!Number.isInteger(width) || !Number.isInteger(height) || width < 1 || height < 1) {
+    throw new RangeError(`bad frame size ${width}x${height}`);
+  }
+  if (prev.length !== width * height || curr.length !== width * height) {
+    throw new RangeError(`frames must each hold width*height=${width * height} samples`);
+  }
+  if (!(bandFraction > 0 && bandFraction <= 1)) {
+    throw new RangeError(`bandFraction must be in (0, 1], got ${bandFraction}`);
+  }
+  if (!(k >= 0) || !Number.isFinite(minDiff)) {
+    throw new RangeError(`need k >= 0 and a finite minDiff, got ${k},${minDiff}`);
+  }
+  const bandW = Math.max(1, Math.floor(width * bandFraction));
+  const x0 = Math.floor((width - bandW) / 2);
+  const rows = new Array<number>(height);
+  for (let y = 0; y < height; y++) {
+    let s = 0;
+    for (let x = x0; x < x0 + bandW; x++) s += Math.abs(curr[y * width + x] - prev[y * width + x]);
+    rows[y] = s / bandW;
+  }
+  const med = median(rows);
+  const mad = median(rows.map((v) => Math.abs(v - med)));
+  const threshold = Math.max(med + k * mad, minDiff);
+  for (let y = 0; y < height; y++) {
+    if (rows[y] > threshold) return height > 1 ? (height - 1 - y) / (height - 1) : 1;
+  }
+  return null;
+}
+
+/**
+ * Time between the front first reaching lo and first reaching hi (defaults 0.2 and 0.8).
+ * Missed frames (null) are skipped, never interpolated. Null when the front never
+ * completes the crossing. times and fronts run per frame in the same order.
+ */
+export function bubbleRiseTime(times: number[], fronts: (number | null)[], lo = 0.2, hi = 0.8): number | null {
+  if (times.length !== fronts.length) throw new RangeError("times and fronts need the same length");
+  if (!(lo >= 0 && hi <= 1 && lo < hi)) throw new RangeError(`need 0 <= lo < hi <= 1, got ${lo},${hi}`);
+  const at = (level: number, from: number): number => {
+    for (let i = from; i < fronts.length; i++) if (fronts[i] !== null && (fronts[i] as number) >= level) return i;
+    return -1;
+  };
+  const i = at(lo, 0);
+  if (i < 0) return null;
+  const j = at(hi, i);
+  return j < 0 ? null : times[j] - times[i];
+}
+
+/** Share of frames where the front was found (nulls count as missed). 0 when empty. */
+export function trackedFraction(fronts: (number | null)[]): number {
+  if (fronts.length === 0) return 0;
+  return fronts.filter((f) => f !== null).length / fronts.length;
+}
+
+/**
+ * Evenly thins a per-frame series to at most maxLen entries, keeping the first and last.
+ * Short series are returned as a copy. Used to fit the wire's 240-entry track cap.
+ */
+export function downsampleEvenly<T>(track: T[], maxLen: number): T[] {
+  if (!Number.isInteger(maxLen) || maxLen < 1) throw new RangeError(`maxLen must be >= 1, got ${maxLen}`);
+  if (track.length <= maxLen) return [...track];
+  if (maxLen === 1) return [track[0]];
+  const out: T[] = [];
+  for (let i = 0; i < maxLen; i++) out.push(track[Math.round((i * (track.length - 1)) / (maxLen - 1))]);
+  return out;
 }

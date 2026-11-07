@@ -3,10 +3,15 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
   addImageDataToAccumulator,
+  brightnessCentroid,
+  bubbleFront,
+  bubbleRiseTime,
   CENTRE_FRACTION,
   CLIP_LEVEL,
+  clippedFraction,
   createRgbAccumulator,
   DB_FLOOR,
+  downsampleEvenly,
   fft,
   floorPowerOfTwo,
   hannWindow,
@@ -15,11 +20,14 @@ import {
   logBandMeans,
   mean,
   meanRgbFromImageData,
+  meanRgbFullFrame,
   normaliseSpectrum,
   rgbStatsFromAccumulator,
   rgbStatsFromImageData,
+  ringProfile,
   rms,
   std,
+  trackedFraction,
   welchPower,
   type ImageLike,
 } from "../src/sensors/dsp.ts";
@@ -326,5 +334,172 @@ describe("RGB stats", () => {
   it(`uses a ${CENTRE_FRACTION} centre region and a ${CLIP_LEVEL} clip level`, () => {
     assert.equal(CENTRE_FRACTION, 0.4);
     assert.equal(CLIP_LEVEL, 250);
+  });
+});
+
+describe("contact helpers", () => {
+  const W = 12, H = 8;
+  function image(fill: (x: number, y: number) => [number, number, number]): ImageLike {
+    const data = new Uint8ClampedArray(W * H * 4);
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W; x++) {
+        const [r, g, b] = fill(x, y), i = (y * W + x) * 4;
+        data[i] = r; data[i + 1] = g; data[i + 2] = b; data[i + 3] = 255;
+      }
+    }
+    return { data, width: W, height: H };
+  }
+
+  it("reads the full-frame mean and clipped fraction", () => {
+    const m = meanRgbFullFrame(image(() => [100, 150, 200]));
+    near(m[0], 100 / 255, 1e-12, "red");
+    near(m[1], 150 / 255, 1e-12, "green");
+    near(m[2], 200 / 255, 1e-12, "blue");
+    assert.equal(clippedFraction(image(() => [255, 255, 255])), 1);
+    assert.equal(clippedFraction(image(() => [249, 249, 249])), 0);
+    // Left half clipped in one channel, right half dark.
+    assert.equal(clippedFraction(image((x) => (x < W / 2 ? [250, 0, 0] : [10, 10, 10]))), 0.5);
+  });
+
+  it("finds the brightness centroid, or the centre when black", () => {
+    const c = brightnessCentroid(image((x, y) => (x === 9 && y === 2 ? [255, 255, 255] : [0, 0, 0])));
+    assert.deepEqual(c, { cx: 9, cy: 2 });
+    const flat = brightnessCentroid(image(() => [40, 40, 40]));
+    near(flat.cx, (W - 1) / 2, 1e-12, "uniform cx is centred");
+    near(flat.cy, (H - 1) / 2, 1e-12, "uniform cy is centred");
+    assert.deepEqual(brightnessCentroid(image(() => [0, 0, 0])), { cx: (W - 1) / 2, cy: (H - 1) / 2 });
+  });
+
+  it("profiles a uniform frame as equal rings", () => {
+    const rings = ringProfile(image(() => [120, 60, 30]), 5, 3, 8);
+    assert.equal(rings.length, 8);
+    for (const [r, g, b] of rings) {
+      near(r, 120 / 255, 1e-12, "ring red");
+      near(g, 60 / 255, 1e-12, "ring green");
+      near(b, 30 / 255, 1e-12, "ring blue");
+    }
+  });
+
+  it("shows radial falloff around the centroid", () => {
+    const cx = 5, cy = 3;
+    const img = image((x, y) => {
+      const v = Math.max(0, Math.round(220 - 22 * Math.hypot(x - cx, y - cy)));
+      return [v, v, v];
+    });
+    const rings = ringProfile(img, cx, cy, 4);
+    assert.equal(rings.length, 4);
+    for (let i = 1; i < rings.length; i++) {
+      assert.ok(rings[i][0] < rings[i - 1][0], `ring ${i} dimmer than ring ${i - 1}`);
+    }
+    assert.ok(rings[0][0] > 0.5, "inner ring is bright");
+  });
+
+  it("covers every pixel: one ring is the frame mean", () => {
+    const img = image((x, y) => [(x * 20) % 256, (y * 30) % 256, ((x + y) * 10) % 256]);
+    const one = ringProfile(img, 2, 6, 1);
+    const full = meanRgbFullFrame(img);
+    near(one[0][0], full[0], 1e-12, "one ring is the frame mean");
+    const rings = ringProfile(img, 2, 6, 8);
+    assert.equal(rings.length, 8);
+    for (const ring of rings) for (const v of ring) assert.ok(v >= 0 && v <= 1, "ring values stay sRGB 0..1");
+  });
+
+  it("rejects bad ring counts", () => {
+    const img = image(() => [10, 10, 10]);
+    assert.throws(() => ringProfile(img, 5, 3, 0), RangeError);
+    assert.throws(() => ringProfile(img, 5, 3, 2.5), RangeError);
+  });
+});
+
+describe("bubble front detection", () => {
+  const W = 8, H = 21; // H - 1 = 20, so fronts land on exact twentieths
+  const blank = () => new Float64Array(W * H);
+  function blob(top: number, height = 2, value = 200): Float64Array {
+    const f = blank();
+    for (let y = top; y < Math.min(H, top + height); y++) for (let x = 0; x < W; x++) f[y * W + x] = value;
+    return f;
+  }
+
+  it("reports nothing for identical frames", () => {
+    assert.equal(bubbleFront(blank(), blank(), W, H), null);
+    const f = blob(10);
+    assert.equal(bubbleFront(f, Float64Array.from(f), W, H), null);
+  });
+
+  it("finds the highest changed row as a fraction from the bottom", () => {
+    assert.equal(bubbleFront(blank(), blob(4), W, H), (H - 1 - 4) / (H - 1));
+    assert.equal(bubbleFront(blank(), blob(0), W, H), 1); // top row is the top of the frame
+    const bottom = blank();
+    for (let x = 0; x < W; x++) bottom[(H - 1) * W + x] = 200;
+    assert.equal(bubbleFront(blank(), bottom, W, H), 0); // bottom row is the bottom
+  });
+
+  it("ignores motion outside the centre column band", () => {
+    const prev = blank(), curr = blank();
+    for (let y = 0; y < H; y++) curr[y * W] = 200; // first column only, outside the band
+    assert.equal(bubbleFront(prev, curr, W, H), null);
+  });
+
+  it("ignores calm noise below the absolute floor", () => {
+    let seed = 7;
+    const rand = () => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff - 0.5);
+    const prev = blank(), curr = blank();
+    for (let p = 0; p < W * H; p++) { prev[p] = 100 + rand() * 2; curr[p] = 100 + rand() * 2; }
+    assert.equal(bubbleFront(prev, curr, W, H), null);
+  });
+
+  it("rejects misshapen frames", () => {
+    assert.throws(() => bubbleFront(new Float64Array(10), new Float64Array(10), W, H), RangeError);
+    assert.throws(() => bubbleFront(blank(), blank(), 0, H), RangeError);
+  });
+
+  it("a blob rising at a known speed gives the right rise time", () => {
+    // Blob top climbs 2 rows per 0.5 s frame: 4 rows/s over a 20-row span.
+    const tops = [18, 16, 14, 12, 10, 8, 6, 4, 2, 0];
+    const frames = tops.map((t) => blob(t));
+    const times = frames.map((_, i) => i * 0.5);
+    const fronts: (number | null)[] = [null];
+    for (let i = 1; i < frames.length; i++) fronts.push(bubbleFront(frames[i - 1], frames[i], W, H));
+    assert.equal(trackedFraction(fronts.slice(1)), 1);
+    // Front crosses 0.2 at y=16 (t=0.5) and 0.8 at y=4 (t=3.5): 0.6 * 20 rows at 4 rows/s.
+    assert.equal(bubbleRiseTime(times, fronts), 3);
+  });
+
+  it("static noise gives tracked_fraction near 0 and a null rise time", () => {
+    let seed = 42;
+    const rand = () => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff - 0.5);
+    const frames: Float64Array[] = [];
+    for (let f = 0; f < 12; f++) {
+      const frame = blank();
+      for (let p = 0; p < W * H; p++) frame[p] = 100 + rand() * 2;
+      frames.push(frame);
+    }
+    const times = frames.map((_, i) => i * 0.1);
+    const fronts: (number | null)[] = [null];
+    for (let i = 1; i < frames.length; i++) fronts.push(bubbleFront(frames[i - 1], frames[i], W, H));
+    assert.ok(trackedFraction(fronts.slice(1)) < 0.1, "almost nothing tracked");
+    assert.equal(bubbleRiseTime(times, fronts), null);
+  });
+
+  it("rise time skips missed frames and needs the full crossing", () => {
+    assert.equal(bubbleRiseTime([0, 1, 2, 3], [0.1, null, 0.5, 0.9]), 1); // 0.2 crossed at t=2, 0.8 at t=3
+    assert.equal(bubbleRiseTime([0, 1, 2, 3], [0.3, null, 0.5, 0.9]), 3);
+    assert.equal(bubbleRiseTime([0, 1, 2], [0.3, 0.5, 0.6]), null); // never reaches 0.8
+    assert.equal(bubbleRiseTime([0, 1], [null, null]), null);
+    assert.equal(trackedFraction([]), 0);
+    assert.throws(() => bubbleRiseTime([0, 1], [0.5]), RangeError);
+    assert.throws(() => bubbleRiseTime([0, 1], [0.5, 0.6], 0.8, 0.2), RangeError);
+  });
+
+  it("downsamples long tracks evenly and caps at the wire limit", () => {
+    const track = Array.from({ length: 10 }, (_, i) => i);
+    assert.deepEqual(downsampleEvenly(track, 5), [0, 2, 5, 7, 9]); // first and last kept
+    const short = [0.1, 0.2];
+    const copy = downsampleEvenly(short, 240);
+    assert.deepEqual(copy, short);
+    assert.notEqual(copy, short);
+    assert.equal(downsampleEvenly(new Array(300).fill(0), 240).length, 240);
+    assert.deepEqual(downsampleEvenly(track, 1), [0]);
+    assert.throws(() => downsampleEvenly(track, 0), RangeError);
   });
 });

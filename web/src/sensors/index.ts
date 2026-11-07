@@ -5,6 +5,8 @@
  * Features are computed on the phone; raw audio and video never leave it.
  */
 import { captureAcoustic, support as acousticSupport } from "./acoustic";
+import { captureBubble, support as bubbleSupport } from "./bubble";
+import { captureContact, support as contactSupport } from "./contact";
 import { captureScreenlight, STANDARD_SEQUENCE, support as screenlightSupport } from "./screenlight";
 import { captureTorch, support as torchSupport } from "./torch";
 import { captureVibration, support as vibrationSupport } from "./vibration";
@@ -12,7 +14,7 @@ import { startMotionMonitor, support as motionSupport, type MotionMonitor } from
 import type { Capture, Modality, MotionCapture, OnProgress, SensorSupport } from "./types";
 
 /** Scan order: light-based captures first (they need the screen), then sound, then shake. */
-const MODALITY_ORDER: Modality[] = ["screenlight", "torch", "acoustic", "vibration"];
+const MODALITY_ORDER: Modality[] = ["screenlight", "torch", "contact", "bubble", "acoustic", "vibration"];
 
 /** Feature detection per modality. Prompts for nothing; safe to call on page load. */
 export function support(): Record<Modality, SensorSupport> {
@@ -21,6 +23,8 @@ export function support(): Record<Modality, SensorSupport> {
     screenlight: screenlightSupport(),
     acoustic: acousticSupport(),
     vibration: vibrationSupport(),
+    contact: contactSupport(),
+    bubble: bubbleSupport(),
     motion: motionSupport(),
   };
 }
@@ -61,6 +65,10 @@ export async function runScan(modalities: Modality[], opts: ScanOptions = {}): P
         });
       } else if (modality === "torch") {
         capture.torch = await captureTorch({ signal, onProgress: forward });
+      } else if (modality === "contact") {
+        capture.contact = await captureContact({ signal, onProgress: forward });
+      } else if (modality === "bubble") {
+        capture.bubble = await captureBubble({ signal, onProgress: forward });
       } else if (modality === "acoustic") {
         capture.acoustic = await captureAcoustic({ signal, onProgress: forward });
       } else if (modality === "vibration") {
@@ -76,7 +84,9 @@ export async function runScan(modalities: Modality[], opts: ScanOptions = {}): P
     }
   }
   if (motion && motionSamples >= 10) capture.motion = motion;
-  if (!capture.torch && !capture.screenlight && !capture.acoustic && !capture.vibration) {
+  const ran = capture.screenlight ?? capture.torch ?? capture.contact ?? capture.bubble ?? capture.acoustic ??
+    capture.vibration;
+  if (!ran) {
     throw new Error("None of the requested sensors can run on this phone. Try a phone with a camera and microphone.");
   }
   return capture;

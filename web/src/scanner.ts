@@ -1,10 +1,12 @@
 /**
- * Scan orchestration. The sensors need two poses, because the screen and the rear camera face
- * opposite ways:
- *   face  the screen side pressed against the food or package: screen-light sweep, sound sweep, vibration
- *   back  the rear camera pointed at the food, close up: torch on/off
+ * Scan orchestration. The sensors need four poses, because the screen and the rear camera face
+ * opposite ways and two modalities need their own hold:
+ *   face     the screen side pressed against the food or package: screen-light sweep, sound sweep, vibration
+ *   back     the rear camera pointed at the food, close up: torch on/off
+ *   contact  the rear camera and torch pressed flat against meat or fish
+ *   bubble   a sealed jar held upside down in front of the camera, then turned upright
  * Each pose runs only the modalities the food profile asks for; between poses the UI asks the
- * user to turn the phone over.
+ * user to move the phone.
  */
 import { runScan, support } from "./sensors";
 import type { Capture, Modality, OnProgress } from "./sensors/types";
@@ -16,9 +18,14 @@ export const SCREEN_COLOURS: Record<string, string> = {
   green: "#00ff00", teal: "#00ff80", cyan: "#00ffff", blue: "#0000ff", violet: "#8000ff", magenta: "#ff00ff",
 };
 
-export const POSES: { id: "face" | "back"; modalities: Modality[]; instruction: string }[] = [
+export const POSES: { id: "face" | "back" | "contact" | "bubble"; modalities: Modality[]; instruction: string }[] = [
   { id: "face", modalities: ["screenlight", "acoustic", "vibration"], instruction: "Screen side against the food. Hold still." },
   { id: "back", modalities: ["torch"], instruction: "Turn the phone over: camera 5 cm from the food." },
+  { id: "contact", modalities: ["contact"], instruction: "Press the camera flat against the meat or fish." },
+  {
+    id: "bubble", modalities: ["bubble"],
+    instruction: "Hold the jar upside down in front of the camera, then turn it upright.",
+  },
 ];
 
 export const SENSOR_INFO: Record<string, { name: string; what: string }> = {
@@ -26,6 +33,8 @@ export const SENSOR_INFO: Record<string, { name: string; what: string }> = {
   torch: { name: "Torch", what: "Colour and clarity with the flash off, then on." },
   acoustic: { name: "Sound sweep", what: "200 Hz to 20 kHz, into near-ultrasound most people can't hear." },
   vibration: { name: "Vibration", what: "How the food damps the phone's vibration motor." },
+  contact: { name: "Light through tissue", what: "The torch light that scatters back out of the meat, ring by ring." },
+  bubble: { name: "Bubble rise", what: "How fast the air bubble climbs through the liquid." },
 };
 
 export function available(modalities: string[]): { modality: string; ok: boolean; reason?: string }[] {
@@ -33,7 +42,13 @@ export function available(modalities: string[]): { modality: string; ok: boolean
   return modalities.map((m) => ({ modality: m, ok: !!s[m]?.available, reason: s[m]?.reason }));
 }
 
-export interface ScanStage { pose: "face" | "back"; instruction: string; modality?: Modality; fraction?: number; hint?: string }
+export interface ScanStage {
+  pose: "face" | "back" | "contact" | "bubble";
+  instruction: string;
+  modality?: Modality;
+  fraction?: number;
+  hint?: string;
+}
 
 /**
  * Run every pose the food needs. `beforePose` lets the UI show the pose instruction and wait for the
