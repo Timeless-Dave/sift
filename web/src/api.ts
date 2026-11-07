@@ -71,7 +71,7 @@ export const api = {
   agent: (body: { assay_id: string; step_id: string; message: string; history: { role: string; content: string }[]; tier: string }) =>
     req<AgentReply>("/v1/agent/turn", json(body)),
   transcribe: (audio: Blob) => {
-    const fd = new FormData(); fd.append("audio", audio, "voice.webm");
+    const fd = new FormData(); fd.append("audio", audio, "voice.wav");
     return req<{ text: string }>("/v1/transcribe", { method: "POST", body: fd });
   },
 };

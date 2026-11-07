@@ -136,7 +136,37 @@ function meanCentre(px: Uint8ClampedArray): number[] {
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-/** Push-to-talk recorder. */
+/**
+ * Muse Voice Transcribe takes only mono 16-bit PCM WAV at 16 or 24 kHz, while browsers record
+ * WebM or MP4. Decode the recording, mix it to mono at 16 kHz and wrap it as WAV.
+ */
+export async function toWav16k(recording: Blob): Promise<Blob> {
+  const RATE = 16000;
+  const ctx = new AudioContext();
+  let decoded: AudioBuffer;
+  try { decoded = await ctx.decodeAudioData(await recording.arrayBuffer()); } finally { void ctx.close(); }
+  const frames = Math.max(1, Math.ceil(decoded.duration * RATE));
+  const offline = new OfflineAudioContext(1, frames, RATE); // one channel: the browser downmixes
+  const src = offline.createBufferSource();
+  src.buffer = decoded;
+  src.connect(offline.destination);
+  src.start();
+  const pcm = (await offline.startRendering()).getChannelData(0);
+
+  const out = new DataView(new ArrayBuffer(44 + pcm.length * 2));
+  const text = (at: number, s: string) => { for (let i = 0; i < s.length; i++) out.setUint8(at + i, s.charCodeAt(i)); };
+  text(0, "RIFF"); out.setUint32(4, 36 + pcm.length * 2, true); text(8, "WAVE");
+  text(12, "fmt "); out.setUint32(16, 16, true); out.setUint16(20, 1, true); out.setUint16(22, 1, true);
+  out.setUint32(24, RATE, true); out.setUint32(28, RATE * 2, true); out.setUint16(32, 2, true); out.setUint16(34, 16, true);
+  text(36, "data"); out.setUint32(40, pcm.length * 2, true);
+  for (let i = 0; i < pcm.length; i++) {
+    const v = Math.max(-1, Math.min(1, pcm[i]));
+    out.setInt16(44 + i * 2, v < 0 ? v * 0x8000 : v * 0x7fff, true);
+  }
+  return new Blob([out.buffer], { type: "audio/wav" });
+}
+
+/** Push-to-talk recorder. Resolves with WAV the transcription model accepts. */
 export function recorder() {
   let rec: MediaRecorder | null = null;
   let chunks: Blob[] = [];
@@ -152,7 +182,11 @@ export function recorder() {
     stop(): Promise<Blob> {
       return new Promise((resolve) => {
         if (!rec) return resolve(new Blob());
-        rec.onstop = () => { stop(stream); resolve(new Blob(chunks, { type: rec?.mimeType || "audio/webm" })); };
+        rec.onstop = () => {
+          stop(stream);
+          const recording = new Blob(chunks, { type: rec?.mimeType || "audio/webm" });
+          toWav16k(recording).then(resolve, () => resolve(new Blob()));
+        };
         rec.stop();
       });
     },

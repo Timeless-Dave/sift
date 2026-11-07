@@ -1,9 +1,9 @@
 """Thin client for Meta Model API (OpenAI-compatible, https://api.meta.ai/v1).
 
 Chat and vision go through /chat/completions with OpenAI-style messages and tools.
-Transcription goes through /asr/transcribe. SAM 3.1 segments through /responses with an
-input_text prompt plus an input_image part; geometry comes back as special-token text in
-the output_text lane (see sift.agent.sam).
+Transcription goes through /asr/transcribe as multipart `request` (JSON settings) plus `audio`
+(mono 16-bit PCM WAV). SAM 3.1 segments through /responses with an input_text prompt plus an
+input_image part; geometry comes back as special-token text in the output_text lane (see sift.agent.sam).
 
 Without MODEL_API_KEY the client reports itself offline and callers use their deterministic
 paths. Offline output is labelled as such in every response; nothing pretends to be a model.
@@ -144,13 +144,19 @@ class MetaClient:
         return args
 
     def transcribe(self, audio: bytes, filename: str, mime: str) -> str:
+        settings = {"model": self.s.transcribe_model, "audioEncoding": "WAV", "mode": "PUSH_TO_TALK"}
         r = self._post(self.s.transcribe_path,
-                       data={"model": self.s.transcribe_model},
-                       files={"file": (filename, audio, mime)})
-        data = r.json()
-        text = data.get("text") or data.get("transcript") or ""
-        if not text and isinstance(data.get("segments"), list):
-            text = " ".join(str(seg.get("text", "")) for seg in data["segments"] if isinstance(seg, dict))
+                       files={"request": (None, json.dumps(settings), "application/json"),
+                              "audio": (filename, audio, mime)})
+        try:
+            data = r.json()
+        except ValueError as exc:
+            raise MetaUnavailable("Transcription response was not JSON") from exc
+        if not isinstance(data, dict):
+            raise MetaUnavailable("Unexpected transcription response shape")
+        text = data.get("transcript") or ""
+        if not text and isinstance(data.get("turns"), list):
+            text = " ".join(str(t.get("transcript", "")) for t in data["turns"] if isinstance(t, dict))
         return str(text).strip()
 
     def segment(self, image_jpeg: bytes, prompt: str, shape: tuple[int, int]) -> list[np.ndarray]:
