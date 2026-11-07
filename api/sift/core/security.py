@@ -124,13 +124,9 @@ _IMAGE_MAGIC = (
     (b"\x89PNG\r\n\x1a\n", "image/png"),
     (b"RIFF", "image/webp"),
 )
-_AUDIO_MAGIC = (
-    (b"\x1aE\xdf\xa3", "audio/webm"),
-    (b"OggS", "audio/ogg"),
-    (b"RIFF", "audio/wav"),
-    (b"ID3", "audio/mpeg"),
-    (b"\xff\xfb", "audio/mpeg"),
-)
+# Muse Voice Transcribe accepts only RIFF/WAVE, mono, 16-bit PCM at 16 or 24 kHz. Anything
+# else gets a misleading 503 from the API, so it is refused here with the reason.
+WAV_RATES = (16_000, 24_000)
 
 
 def sniff_image(raw: bytes) -> str:
@@ -190,9 +186,18 @@ def check_pixels(raw: bytes, limit: int = MAX_IMAGE_PIXELS) -> None:
 
 
 def sniff_audio(raw: bytes) -> str:
-    if len(raw) > 12 and raw[4:8] == b"ftyp":
-        return "audio/mp4"
-    for magic, mime in _AUDIO_MAGIC:
-        if raw.startswith(magic):
-            return mime
-    raise InvalidInput("Upload WebM, Ogg, MP4, WAV or MP3 audio.")
+    """Check the upload is WAV the transcription model accepts. Returns its MIME type."""
+    if len(raw) < 44 or raw[:4] != b"RIFF" or raw[8:12] != b"WAVE":
+        raise InvalidInput("Upload WAV audio (mono, 16-bit PCM, 16 or 24 kHz).")
+    i = 12
+    while i + 8 <= len(raw):
+        chunk, size = raw[i:i + 4], struct.unpack("<I", raw[i + 4:i + 8])[0]
+        if chunk == b"fmt " and size >= 16:
+            fmt, channels, rate = struct.unpack("<HHI", raw[i + 8:i + 16])
+            bits = struct.unpack("<H", raw[i + 22:i + 24])[0]
+            if fmt != 1 or channels != 1 or bits != 16 or rate not in WAV_RATES:
+                raise InvalidInput(f"Audio must be mono 16-bit PCM WAV at 16 or 24 kHz, not {channels} channel(s), "
+                                   f"{bits}-bit at {rate} Hz.")
+            return "audio/wav"
+        i += 8 + size + (size & 1)
+    raise InvalidInput("The WAV file has no format header.")

@@ -132,3 +132,32 @@ def test_reply_cut_off_by_reasoning_falls_back():
                                                       "message": {"content": None}}]})
     out = LabAgent(_client(handler)).write_report(ASSAY, FLAG, "public")
     assert out["agent"] == "offline" and out["fallback"] == "agent_unavailable"
+
+
+def _wav(rate=16000, channels=1, bits=16, frames=1600):
+    import struct
+    data = b"\0" * (frames * channels * bits // 8)
+    fmt = struct.pack("<HHIIHH", 1, channels, rate, rate * channels * bits // 8, channels * bits // 8, bits)
+    return b"RIFF" + struct.pack("<I", 36 + len(data)) + b"WAVE" + b"fmt " + struct.pack("<I", 16) + fmt \
+        + b"data" + struct.pack("<I", len(data)) + data
+
+
+def test_transcribe_sends_documented_multipart():
+    seen = {}
+
+    def handler(request):
+        body = request.content
+        seen["request"] = b'name="request"' in body and b'"audioEncoding": "WAV"' in body
+        seen["audio"] = b'name="audio"; filename="voice.wav"' in body
+        return httpx.Response(200, json={"sessionId": "s", "transcript": "Done. Next step.", "turns": []})
+    assert _client(handler).transcribe(_wav(), "voice.wav", "audio/wav") == "Done. Next step."
+    assert seen == {"request": True, "audio": True}
+
+
+@pytest.mark.parametrize("raw", [b"\x1aE\xdf\xa3" + b"\0" * 100, _wav(rate=44100), _wav(channels=2), _wav(bits=8)])
+def test_unsupported_audio_refused_before_the_api(raw):
+    from sift.core.errors import InvalidInput
+    from sift.core.security import sniff_audio
+    with pytest.raises(InvalidInput):
+        sniff_audio(raw)
+    assert sniff_audio(_wav()) == sniff_audio(_wav(rate=24000)) == "audio/wav"
