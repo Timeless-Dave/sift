@@ -286,3 +286,15 @@ def test_transcribe_rejects_non_wav(make_client):
     c = _keyed_client_with_meta(make_client, lambda req: httpx.Response(200, json={"transcript": "x"}))
     r = c.post("/v1/transcribe", files={"audio": ("voice.wav", b"not audio" * 100, "audio/wav")})
     assert r.status_code == 422
+
+
+def test_vercel_entry_serves_the_app_under_api(monkeypatch, tmp_path):
+    monkeypatch.setenv("SIFT_DB", str(tmp_path / "v.db"))
+    from fastapi.testclient import TestClient
+
+    from sift.vercel import app
+    c = TestClient(app)
+    assert c.get("/api/health").json()["ok"] is True
+    assert c.get("/api/v1/foods").status_code == 200
+    assert c.get("/api/docs").status_code == 200
+    assert c.get("/v1/foods").status_code == 404

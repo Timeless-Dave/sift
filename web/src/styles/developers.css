@@ -1,0 +1,18 @@
+/* API docs page. Scoped under .developers so nothing leaks. */
+
+.developers { max-width: 760px; display: grid; gap: 14px; align-content: start; }
+.developers p { margin: 0; color: var(--ink-2); }
+.developers .page-head p { margin: 0; }
+.developers h2 { margin-top: 22px; }
+.developers h3 { margin-top: 8px; }
+.developers pre {
+  margin: 0; background: var(--night); color: var(--night-ink);
+  padding: 16px 18px; border-radius: var(--r-m); overflow-x: auto;
+  font: 400 0.82rem/1.55 var(--mono);
+}
+.developers pre code { font: inherit; }
+.developers p code {
+  font: 400 0.88em var(--mono); background: var(--paper-2);
+  border: 1px solid var(--rule); border-radius: 4px; padding: 1px 5px;
+}
+.developers .btn { justify-self: start; margin-top: 10px; }

@@ -6,6 +6,8 @@ reference scans of genuine and adulterated samples, and says only what the evide
 
 Built for the Meta Global AI Developer Hackathon 2026 (Indie track, theme: Push the Frontier).
 
+Live at **https://siftfood.vercel.app**.
+
 ## Status
 
 The scanner pipeline works end to end, from sensors to answer. It has been tested in Chrome with
@@ -157,7 +159,7 @@ layer only depends on the layers below it, so any of them can be split into its 
 later without rewriting it.
 
 ```
-web/  PWA (Vite, TypeScript) served by nginx; nginx proxies /api to the API
+web/  React PWA (Vite, TypeScript); pages in src/pages, design system in src/styles
   src/sensors/  phone sensing: torch, screen-light, contact, bubble, acoustic, vibration, motion, barcode
 api/sift/
   http/       FastAPI app, middleware, request schemas, thin routers
@@ -272,6 +274,31 @@ Desktop or Colima on a Mac, port forwarding makes every `:8080` client appear as
 share one rate limit; on Linux, and through Caddy, each client is counted separately.
 
 For the lab tests, print `docs/sift-reference-card.svg` at 100% on plain white paper.
+
+### Deploy on Vercel
+
+`vercel.json` defines two services: `api` (FastAPI, mounted under `/api` by `api/sift/vercel.py`) and
+`web` (the Vite React app). `/api/*` routes to `api`; everything else goes to `web`, with an SPA
+fallback and the same security headers nginx sends. Neither service calls the other server-side, so
+there are no bindings.
+
+```bash
+vercel link --project siftfood
+vercel env add MODEL_API_KEY production --sensitive   # also SIFT_ENV=production, SIFT_CORS=https://<domain>,
+                                                       # SIFT_TRUST_PROXY=1, SIFT_REASONING_EFFORT=minimal
+vercel deploy --prod
+```
+
+Know the limits before relying on it:
+
+- **Storage isn't persistent.** On Vercel the SQLite database lives in the function's temp directory
+  and is lost whenever an instance recycles, so scans and the reference library don't last. The API
+  logs a warning at startup. Use a persistent database (for example Postgres from the Vercel
+  Marketplace) before building a real library there.
+- **Cold starts are slow.** The API's scientific Python (SciPy, scikit-learn, OpenCV) is about 420 MB
+  of the 500 MB function limit, and Vercel installs part of it when a cold instance starts. The first
+  request to a cold instance can fail or take several seconds.
+- `.vercelignore` keeps `.env`, virtualenvs, `node_modules` and databases out of uploads.
 
 ### Dependencies
 

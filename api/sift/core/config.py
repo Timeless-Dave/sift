@@ -4,11 +4,17 @@ from __future__ import annotations
 
 import logging
 import os
+import tempfile
 from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path
 
 log = logging.getLogger("sift.config")
+
+
+def _default_db() -> str:
+    """Vercel functions can only write to the temp dir; everywhere else the DB sits in the working directory."""
+    return str(Path(tempfile.gettempdir()) / "sift.db") if _env("VERCEL") else "sift.db"
 
 
 def _env(name: str, default: str = "") -> str:
@@ -56,7 +62,8 @@ class Settings:
     sam_path: str = field(default_factory=lambda: _env("SIFT_SAM_PATH", "/responses"))
     transcribe_path: str = field(default_factory=lambda: _env("SIFT_TRANSCRIBE_PATH", "/asr/transcribe"))
     off_base_url: str = field(default_factory=lambda: _env("SIFT_OFF_BASE_URL", "https://world.openfoodfacts.org"))
-    db_path: Path = field(default_factory=lambda: Path(_env("SIFT_DB", "sift.db")))
+    # On Vercel only the temp dir is writable, and it does not outlive the function instance; see validate().
+    db_path: Path = field(default_factory=lambda: Path(_env("SIFT_DB") or _default_db()))
     # Empty means the in-process limiter (one worker); set to redis://... to share limits across workers.
     redis_url: str = field(default_factory=lambda: _env("SIFT_REDIS_URL"))
     require_api_key: bool = field(default_factory=lambda: _env("SIFT_REQUIRE_KEY", "0") == "1")
@@ -88,6 +95,9 @@ class Settings:
                 raise ValueError("SIFT_ADMIN_TOKEN must be at least 24 characters.")
         if not self.meta_api_key:
             log.warning("MODEL_API_KEY not set: the Lab Agent runs offline.")
+        if _env("VERCEL") and Path(tempfile.gettempdir()) in self.db_path.parents:
+            log.warning("SQLite is in the temp dir on Vercel: scans and reference libraries are lost when the "
+                        "instance recycles. Use a persistent database before relying on the library.")
 
 
 @lru_cache(maxsize=1)

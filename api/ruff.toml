@@ -1,0 +1,10 @@
+# Lint settings (kept out of pyproject.toml so Vercel installs from requirements.txt).
+line-length = 120
+target-version = "py311"
+
+[lint]
+select = ["E", "F", "W", "I", "B", "UP", "S", "SIM"]
+ignore = ["S101", "B008", "S311"]
+
+[lint.per-file-ignores]
+"tests/*" = ["S", "E501"]

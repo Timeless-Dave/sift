@@ -1,0 +1,166 @@
+/* Lab-test pages: the reagent list, the guided run, the result and calibration.
+   Scoped under the page roots so nothing leaks. Uses the base.css tokens. */
+
+.lab-tests, .lab-run, .lab-result, .lab-cal { max-width: 760px; }
+
+.lab-tests .food, .lab-run .food, .lab-result .food {
+  color: var(--muted); margin: 0; font-size: 0.95rem;
+}
+.lab-run h1, .lab-result h1 { margin: 2px 0 8px; }
+.lab-tests section, .lab-run .run, .lab-result .result, .lab-cal .lab {
+  display: grid; gap: 14px; align-content: start;
+}
+.lab-cal h2, .lab-result h2 { margin-top: 18px; }
+.lab-cal p, .lab-result p { margin: 0; }
+.lab-cal .back, .lab-run .back, .lab-result .back { justify-self: start; }
+
+/* Test list */
+.lab-tests .assays { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }
+.lab-tests .assays > li { display: grid; gap: 6px; }
+.lab-tests .assay {
+  display: grid; gap: 2px; padding: 16px 18px;
+  background: var(--paper-2); border: 1px solid var(--rule);
+  border-radius: var(--r-m); color: var(--ink); text-decoration: none;
+}
+.lab-tests a.assay:hover { border-color: var(--rule-strong); }
+.lab-tests .assay .food { font-size: 0.88rem; }
+.lab-tests .assay .name { font: 400 1.5rem/1.2 var(--serif); }
+.lab-tests .assay .q { font-size: 0.98rem; color: var(--ink-2); }
+.lab-tests .assay .meta { color: var(--muted); font-size: 0.85rem; }
+.lab-tests .assay.quiet { background: transparent; }
+.lab-tests .lab-link { font-size: 0.9rem; padding-left: 4px; }
+.lab-tests .planned { margin-top: 8px; }
+.lab-tests .card-cta {
+  margin-top: 24px; display: flex; gap: 16px; align-items: center;
+  justify-content: space-between; flex-wrap: wrap;
+}
+.lab-tests .card-cta p { margin: 6px 0 0; color: var(--muted); }
+
+/* Guided run */
+.lab-run .kit { padding: 10px 16px; }
+.lab-run .kit summary { cursor: pointer; font-weight: 600; }
+.lab-run .kit ul { margin: 8px 0; padding-left: 1.1em; }
+.lab-run .practice { display: flex; gap: 8px; align-items: center; font-size: 0.92rem; }
+.lab-run .steps {
+  list-style: none; counter-reset: s; padding: 0; margin: 6px 0 0;
+  display: flex; gap: 6px; flex-wrap: wrap;
+}
+.lab-run .steps li {
+  counter-increment: s; font-size: 0.8rem; color: var(--muted);
+  padding: 4px 10px 4px 6px; border: 1px solid var(--rule); border-radius: 999px;
+  display: inline-flex; align-items: center;
+}
+.lab-run .steps li::before {
+  content: counter(s); display: inline-grid; place-items: center;
+  width: 18px; height: 18px; margin-right: 6px; border-radius: 50%;
+  background: var(--paper-3); color: var(--ink);
+  font-weight: 600; font-size: 0.72rem; font-family: var(--mono);
+}
+.lab-run .steps li.done::before { background: var(--match); color: #fff; }
+.lab-run .steps li.now { color: var(--ink); border-color: var(--ink); font-weight: 600; }
+.lab-run .steps li.now::before { background: var(--ink); color: var(--paper); }
+.lab-run .stage { display: grid; gap: 10px; }
+.lab-run .step-card { display: grid; gap: 10px; }
+.lab-run .step-card h2 { margin: 0; }
+.lab-run .agent-text { font-size: 1.08rem; margin: 0; }
+.lab-run .agent-tag { font-size: 0.8rem; color: var(--muted); margin: 0; }
+.lab-run .timer { font-size: 2.4rem; font-variant-numeric: tabular-nums; }
+.lab-run .working { color: var(--link); font-weight: 600; margin: 0; }
+.lab-run .cam-error, .lab-result .cam-error { color: var(--differs); font-weight: 500; margin: 0; }
+.lab-run .row, .lab-result .row, .lab-cal .row { display: flex; flex-wrap: wrap; gap: 10px; margin: 6px 0; }
+.lab-run .ask { display: grid; grid-template-columns: 1fr auto auto; gap: 8px; margin-top: 4px; }
+.lab-run .ask input {
+  min-height: 48px; padding: 0 14px; border: 1px solid var(--rule-strong);
+  border-radius: 999px; background: var(--paper-2); color: var(--ink); font: inherit; min-width: 0;
+}
+.lab-run .mic.live { background: var(--differs); border-color: var(--differs); color: #fff; }
+@media (max-width: 460px) {
+  .lab-run .ask { grid-template-columns: 1fr 1fr; }
+  .lab-run .ask input { grid-column: 1 / -1; }
+}
+
+/* Capture widgets (markup is built by capture.ts) */
+.lab-run .capture { display: grid; gap: 10px; margin-top: 4px; }
+.lab-run .viewfinder {
+  position: relative; aspect-ratio: 3 / 4; background: var(--night);
+  border-radius: var(--r-m); overflow: hidden;
+}
+.lab-run .viewfinder video { width: 100%; height: 100%; object-fit: cover; }
+.lab-run .guide {
+  position: absolute; inset: 22% 8%; aspect-ratio: 3 / 2; margin: auto;
+  border: 2px solid rgba(255, 255, 255, 0.85); border-radius: 4px;
+}
+.lab-run .guide span { position: absolute; width: 18%; aspect-ratio: 1; border: 3px solid #fff; }
+.lab-run .guide span:nth-child(1) { left: -2px; top: -2px; border-right: 0; border-bottom: 0; }
+.lab-run .guide span:nth-child(2) { right: -2px; top: -2px; border-left: 0; border-bottom: 0; }
+.lab-run .guide span:nth-child(3) { right: -2px; bottom: -2px; border-left: 0; border-top: 0; }
+.lab-run .guide span:nth-child(4) { left: -2px; bottom: -2px; border-right: 0; border-top: 0; }
+.lab-run .hint { font-size: 0.95rem; color: var(--muted); margin: 0; }
+
+/* Result */
+.lab-result .verdict { font-weight: 600; font-size: 1rem; margin: 0; color: var(--muted); }
+.lab-result.verdict-pass .verdict { color: var(--match); }
+.lab-result.verdict-caution .verdict { color: var(--warn); }
+.lab-result.verdict-flag .verdict { color: var(--differs); }
+.lab-result .confidence { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 0.95rem; }
+.lab-result .meter {
+  width: 90px; height: 8px; border-radius: 4px;
+  background: linear-gradient(90deg, var(--ink) var(--c), var(--rule) var(--c));
+}
+.lab-result .scale {
+  position: relative; display: flex; height: 54px; margin: 26px 0 4px;
+  border: 1px solid var(--ink); border-radius: 4px; background: var(--paper-2);
+}
+.lab-result .scale .seg {
+  position: relative; display: flex; align-items: flex-end;
+  font-size: 0.72rem; padding: 0 0 3px 4px;
+}
+.lab-result .scale .seg b { font-weight: 500; color: var(--ink); opacity: 0.75; }
+.lab-result .scale .seg + .seg { border-left: 1px solid var(--ink); }
+.lab-result .seg.pass { background: color-mix(in srgb, var(--match) 22%, var(--paper-2)); }
+.lab-result .seg.caution { background: color-mix(in srgb, var(--warn) 25%, var(--paper-2)); }
+.lab-result .seg.flag { background: color-mix(in srgb, var(--differs) 22%, var(--paper-2)); }
+.lab-result .scale.two .seg {
+  flex: 1; align-items: center; justify-content: center; padding: 0;
+  font-size: 0.95rem; font-weight: 500; opacity: 0.45;
+}
+.lab-result .scale.two .seg.hit { opacity: 1; font-weight: 600; box-shadow: inset 0 0 0 3px var(--ink); }
+.lab-result .marker { position: absolute; top: -14px; bottom: -6px; width: 3px; margin-left: -1.5px; background: var(--ink); }
+.lab-result .marker em {
+  position: absolute; top: -26px; left: 50%; transform: translateX(-50%);
+  font: 600 1rem var(--sans); font-style: normal; white-space: nowrap;
+}
+.lab-result .unit { font-size: 0.85rem; color: var(--muted); }
+.lab-result .report { font-size: 1.08rem; }
+.lab-result .note h2 { margin: 0 0 6px; }
+.lab-result .note ul { margin: 0; padding-left: 1.1em; }
+.lab-result .sources { margin-top: 6px; }
+.lab-result .sources summary { cursor: pointer; font-weight: 600; }
+.lab-result .sources li { margin-bottom: 0.5em; font-size: 0.93rem; }
+
+/* Research data and calibration */
+.lab-result .research, .lab-cal .lab { border-top: 1px solid var(--rule); padding-top: 6px; }
+.lab-result .research { display: grid; gap: 12px; margin-top: 12px; }
+.lab-result .data, .lab-cal .data {
+  width: 100%; border-collapse: collapse; font-size: 0.9rem;
+  font-variant-numeric: tabular-nums; background: var(--paper-2);
+}
+.lab-result .data th, .lab-result .data td,
+.lab-cal .data th, .lab-cal .data td {
+  text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--rule); vertical-align: top;
+}
+.lab-result .data th, .lab-cal .data th { font-weight: 500; color: var(--muted); }
+.lab-cal .data.runs { display: block; overflow-x: auto; }
+.lab-result .known, .lab-cal .device { display: grid; gap: 8px; }
+.lab-result .known label, .lab-cal .device label { display: grid; gap: 6px; font-weight: 500; }
+.lab-result .known input, .lab-cal .device input {
+  min-height: 44px; padding: 0 12px; border: 1px solid var(--rule-strong);
+  border-radius: var(--r-s); font: inherit; background: var(--paper-2); color: var(--ink);
+}
+.lab-cal .assay-tabs { display: flex; gap: 6px; flex-wrap: wrap; margin: 6px 0; }
+.lab-cal .assay-tabs a {
+  padding: 6px 12px; border: 1px solid var(--rule-strong); border-radius: 999px;
+  text-decoration: none; color: var(--ink); font-size: 0.9rem;
+}
+.lab-cal .assay-tabs a[aria-current="page"] { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+.lab-cal .train-out, .lab-result .known-out { min-height: 1.5em; }

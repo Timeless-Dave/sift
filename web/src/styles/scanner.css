@@ -1,0 +1,65 @@
+/* The scanner: a dark, full-bleed tool in both themes, because it is a camera. */
+.scanner { min-height: 100dvh; background: var(--night); color: var(--night-ink); display: flex; flex-direction: column; }
+.scanner .eyebrow { color: rgba(241, 237, 227, .55); }
+.scanner-top { display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: max(12px, env(safe-area-inset-top)) 16px 12px; position: relative; z-index: 3; }
+.wordmark.light { color: var(--night-ink); }
+.scanner-top-actions { display: flex; align-items: center; gap: 6px; }
+.top-link { color: rgba(241,237,227,.72); text-decoration: none; font: 500 .88rem var(--sans); padding: 8px 10px; }
+.tier { border: 1px solid rgba(241,237,227,.28); background: none; color: rgba(241,237,227,.8); border-radius: 999px;
+  padding: 7px 12px; font: 500 .8rem var(--sans); cursor: pointer; }
+.tier[aria-pressed="true"] { background: var(--night-ink); color: var(--night); border-color: var(--night-ink); }
+
+.viewfinder { position: relative; flex: 1 1 auto; min-height: 46dvh; max-height: 62dvh; margin: 0 10px; border-radius: 22px; overflow: hidden;
+  background: radial-gradient(120% 80% at 50% 35%, #23211b 0%, #090908 72%); }
+.viewfinder video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity .3s; }
+.viewfinder.live video { opacity: 1; }
+.reticle { position: absolute; inset: 20% 16%; opacity: 0; transition: opacity .3s; pointer-events: none; }
+.viewfinder.live .reticle { opacity: 1; }
+.reticle i { position: absolute; width: 30px; height: 30px; border: 2px solid rgba(255,255,255,.92); }
+.reticle i:nth-child(1) { top: 0; left: 0; border-right: 0; border-bottom: 0; border-radius: 10px 0 0 0; }
+.reticle i:nth-child(2) { top: 0; right: 0; border-left: 0; border-bottom: 0; border-radius: 0 10px 0 0; }
+.reticle i:nth-child(3) { bottom: 0; right: 0; border-left: 0; border-top: 0; border-radius: 0 0 10px 0; }
+.reticle i:nth-child(4) { bottom: 0; left: 0; border-right: 0; border-top: 0; border-radius: 0 0 0 10px; }
+.start { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;
+  border: 0; background: none; color: var(--night-ink); cursor: pointer; text-align: center; padding: 24px; }
+.start strong { font: 400 clamp(2rem, 8vw, 2.8rem)/1.02 var(--serif); }
+.start span:last-child { color: rgba(241,237,227,.55); font-size: .92rem; }
+.spectrum.big { width: 190px; height: 9px; margin-bottom: 10px; }
+.vf-status { position: absolute; left: 12px; right: 12px; bottom: 12px; margin: 0; padding: 10px 14px; border-radius: 12px;
+  background: rgba(9,9,8,.72); backdrop-filter: blur(8px); font-size: .9rem; }
+
+.deck { display: grid; gap: 14px; padding: 18px 16px calc(18px + env(safe-area-inset-bottom)); max-width: 640px; width: 100%; margin: 0 auto; }
+.checking { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.food-pick { background: none; border: 0; color: var(--night-ink); font: 400 2rem/1 var(--serif); cursor: pointer; padding: 0 22px 0 0;
+  position: relative; text-align: left; }
+.food-pick::after { content: ""; position: absolute; right: 3px; top: 50%; width: 8px; height: 8px; margin-top: -7px;
+  border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(45deg); opacity: .6; }
+.food-pick.empty { color: rgba(241,237,227,.55); }
+.scanner .chip { border-color: rgba(241,237,227,.28); color: var(--night-ink); }
+.scanner .chip[aria-pressed="true"] { background: var(--night-ink); color: var(--night); border-color: var(--night-ink); }
+.scanner .chip.hint { border-color: #8fb1ff; }
+.checking .chip { margin-left: auto; }
+.food-list { display: flex; flex-wrap: wrap; gap: 8px; }
+.placement { margin: 0; font-size: 1.02rem; }
+.sensor-row { list-style: none; margin: 0; padding: 0; display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; }
+.sensor-row li { flex: 0 0 auto; display: grid; justify-items: center; gap: 4px; padding: 10px 12px; border: 1px solid rgba(241,237,227,.16);
+  border-radius: 14px; font-size: .78rem; color: rgba(241,237,227,.85); min-width: 92px; text-align: center; }
+.sensor-row li.off { opacity: .42; }
+.sensor-row em { font-style: normal; font-size: .68rem; color: rgba(241,237,227,.6); }
+.reference { display: grid; gap: 10px; padding: 12px; border: 1px dashed rgba(241,237,227,.25); border-radius: 14px; }
+.ref-toggle { display: flex; align-items: center; gap: 10px; font-size: .92rem; }
+.ref-form { display: grid; gap: 8px; }
+.ref-form select, .ref-form input { font: inherit; padding: 10px 12px; border-radius: 10px; border: 1px solid rgba(241,237,227,.22);
+  background: #191814; color: var(--night-ink); }
+.scan-btn { font: 600 1.1rem var(--sans); padding: 18px; border-radius: 16px; border: 0; background: var(--night-ink); color: var(--night); cursor: pointer; }
+.scan-btn:disabled { opacity: .3; cursor: not-allowed; }
+.deck-note { color: rgba(241,237,227,.5); margin: 0; }
+.vf-error { color: #ff9b7a; margin: 0; }
+
+.scan-overlay { position: fixed; inset: 0; z-index: 40; background: var(--night); color: var(--night-ink); display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 16px; padding: 28px; text-align: center; }
+.scan-overlay .pose { font: 400 clamp(1.9rem, 7vw, 2.6rem)/1.08 var(--serif); max-width: 16ch; margin: 0; }
+.scan-overlay .stage-line { color: rgba(241,237,227,.6); min-height: 1.4em; margin: 0; font-size: .9rem; }
+.scan-overlay .bar { width: min(300px, 78vw); height: 3px; background: rgba(241,237,227,.15); border-radius: 2px; overflow: hidden; }
+.scan-overlay .bar i { display: block; height: 100%; background: var(--night-ink); transition: width .2s; }
