@@ -1,4 +1,4 @@
-"""SQLite storage for runs, calibration samples, trained models and API keys."""
+"""SQLite storage for runs, calibration samples, trained models, API keys and instant scans."""
 
 from __future__ import annotations
 
@@ -55,7 +55,23 @@ CREATE TABLE IF NOT EXISTS api_keys (
     revoked INTEGER NOT NULL DEFAULT 0,
     calls INTEGER NOT NULL DEFAULT 0
 );
+CREATE TABLE IF NOT EXISTS scans (
+    id TEXT PRIMARY KEY,
+    food TEXT NOT NULL,
+    device TEXT,
+    owner TEXT NOT NULL DEFAULT '',
+    mode TEXT NOT NULL,
+    label TEXT,
+    target TEXT,
+    value REAL,
+    barcode TEXT,
+    created REAL NOT NULL,
+    features TEXT,
+    result TEXT
+);
 CREATE INDEX IF NOT EXISTS runs_assay ON runs (assay_id, created);
+CREATE INDEX IF NOT EXISTS scans_food ON scans (food, created);
+CREATE INDEX IF NOT EXISTS scans_library ON scans (food, device, owner);
 CREATE INDEX IF NOT EXISTS samples_scope ON calibration_samples (assay_id, device, owner);
 CREATE UNIQUE INDEX IF NOT EXISTS samples_run ON calibration_samples (run_id) WHERE run_id IS NOT NULL;
 """
@@ -200,6 +216,79 @@ class Store:
                              (assay_id, owner)).fetchall()
         return [{**dict(r), "metrics": json.loads(r["metrics"])} for r in rows]
 
+    # Instant scans --------------------------------------------------------
+    def save_scan(self, scan_id: str, food: str, device: str | None, owner: str, mode: str, label: str | None,
+                  target: str | None, value: float | None, barcode: str | None, features: Any,
+                  result: dict) -> str:
+        """Store a scan. Rejected scans are kept for audit but never join the reference library."""
+        with self._conn() as c:
+            c.execute(
+                "INSERT INTO scans (id, food, device, owner, mode, label, target, value, barcode, created,"
+                " features, result) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                (scan_id, food, device, owner, mode, label, target, value, barcode, time.time(),
+                 json.dumps(features), json.dumps(result)),
+            )
+        return scan_id
+
+    def get_scan(self, scan_id: str, viewer: str | None = None) -> dict | None:
+        """A key's scans are visible only to that key; public scans to everyone."""
+        with self._conn() as c:
+            row = c.execute("SELECT * FROM scans WHERE id=?", (scan_id,)).fetchone()
+        if not row:
+            return None
+        if row["owner"] != PUBLIC and row["owner"] != viewer:
+            return None
+        return _scan_row(row)
+
+    def list_scans(self, food: str | None = None, limit: int = 50, viewer: str | None = None) -> list[dict]:
+        q = "SELECT * FROM scans WHERE (owner=? OR owner=?)"
+        args: tuple = (PUBLIC, viewer)
+        if food:
+            q += " AND food=?"
+            args += (food,)
+        q += " ORDER BY created DESC LIMIT ?"
+        with self._conn() as c:
+            rows = c.execute(q, (*args, limit)).fetchall()
+        return [_scan_row(r) for r in rows]
+
+    def reference_scans(self, food: str, device: str, owner: str = PUBLIC) -> list[dict]:
+        """Usable reference library for one food, phone label and owner: reference-mode scans
+        that passed the quality checks, oldest first."""
+        with self._conn() as c:
+            rows = c.execute(
+                "SELECT * FROM scans WHERE food=? AND device=? AND owner=? AND mode='reference' ORDER BY created",
+                (food, device, owner),
+            ).fetchall()
+        out = []
+        for r in rows:
+            d = _scan_row(r)
+            if isinstance(d.get("result"), dict) and d["result"].get("status") == "rejected":
+                continue
+            out.append(d)
+        return out
+
+    def reference_counts(self, food: str, owner: str = PUBLIC) -> dict:
+        """Library size for one food and owner, overall and per phone label, for the foods catalog."""
+        with self._conn() as c:
+            rows = c.execute("SELECT * FROM scans WHERE food=? AND owner=? AND mode='reference'",
+                             (food, owner)).fetchall()
+        counts: dict = {"references": 0, "genuine": 0, "by_device": {}, "by_target": {}}
+        for r in rows:
+            d = _scan_row(r)
+            if isinstance(d.get("result"), dict) and d["result"].get("status") == "rejected":
+                continue
+            counts["references"] += 1
+            if d.get("label") == "genuine":
+                counts["genuine"] += 1
+            dev = counts["by_device"].setdefault(d.get("device") or "unknown", {"references": 0, "genuine": 0})
+            dev["references"] += 1
+            if d.get("label") == "genuine":
+                dev["genuine"] += 1
+            if d.get("target"):
+                tgt = counts["by_target"].setdefault(d["target"], {})
+                tgt[d.get("label") or "unknown"] = tgt.get(d.get("label") or "unknown", 0) + 1
+        return counts
+
     # API keys -------------------------------------------------------------
     def create_key(self, key_hash: str, prefix: str, owner: str) -> None:
         with self._conn() as c:
@@ -238,4 +327,12 @@ def _run_row(row: sqlite3.Row) -> dict:
         if d.get(k):
             d[k] = json.loads(d[k])
     d.pop("api_key", None)
+    return d
+
+
+def _scan_row(row: sqlite3.Row) -> dict:
+    d = dict(row)
+    for k in ("features", "result"):
+        if d.get(k):
+            d[k] = json.loads(d[k])
     return d

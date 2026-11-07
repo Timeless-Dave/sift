@@ -17,7 +17,7 @@ from ..core.errors import SiftError
 from ..core.logging import request_id, setup_logging
 from ..domain import registry
 from .deps import Container, client_ip
-from .routes import admin, agent, assays, calibration, runs
+from .routes import admin, agent, assays, calibration, runs, scans
 
 log = logging.getLogger("sift.http")
 
@@ -108,6 +108,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return {"ok": True, "version": __version__, "agent": "muse-spark" if c.client.online else "offline",
                 "chat_model": settings.chat_model}
 
-    for module in (assays, runs, calibration, agent, admin):
+    for module in (assays, runs, calibration, agent, admin, scans):
         app.include_router(module.router)
     return app

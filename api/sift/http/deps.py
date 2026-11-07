@@ -14,6 +14,7 @@ from ..core.config import Settings
 from ..core.errors import Unauthorized
 from ..core.security import RateLimiter, RedisRateLimiter, hash_key
 from ..data.store import Store
+from ..scan.service import ScanService
 from ..services.runs import CalibrationService, RunService
 
 log = logging.getLogger("sift.http.deps")
@@ -39,6 +40,7 @@ class Container:
     runs: RunService
     calibration: CalibrationService
     limiter: RateLimiter
+    scans: ScanService
 
     @classmethod
     def build(cls, settings: Settings) -> Container:
@@ -46,7 +48,7 @@ class Container:
         client = MetaClient(settings)
         agent = LabAgent(client)
         return cls(settings, store, client, agent, RunService(settings, store, client, agent),
-                   CalibrationService(store), build_limiter(settings))
+                   CalibrationService(store), build_limiter(settings), ScanService(store, agent))
 
 
 def container(request: Request) -> Container:
