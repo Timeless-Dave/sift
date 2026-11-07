@@ -40,7 +40,12 @@ export interface AgentReply { agent: string; reply: string; step_id: string; act
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(API + path, init);
   const body = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error((body as { detail?: string }).detail || `Request failed (${res.status})`);
+  if (!res.ok) {
+    const b = body as { detail?: string; error?: { code?: string; message?: string; request_id?: string } };
+    const msg = b.detail || b.error?.message || `Request failed (${res.status})`;
+    const tag = [b.error?.code, b.error?.request_id ? `request ${b.error.request_id}` : ""].filter(Boolean).join(", ");
+    throw new Error(tag ? `${msg} (${tag})` : msg);
+  }
   return body as T;
 }
 
@@ -51,7 +56,7 @@ const json = (data: unknown): RequestInit => ({
 export const api = {
   health: () => req<{ agent: string; version: string; chat_model: string }>("/health"),
   assays: () => req<Assay[]>("/v1/assays"),
-  assay: (id: string) => req<Assay>(`/v1/assays/${id}`),
+  assay: (id: string) => req<Assay>(`/v1/assays/${encodeURIComponent(id)}`),
   runCard: (assayId: string, image: Blob, device: string, tier: string) => {
     const fd = new FormData();
     fd.append("assay_id", assayId); fd.append("device", device); fd.append("tier", tier);
@@ -60,18 +65,19 @@ export const api = {
   },
   runScreenlight: (assayId: string, frames: Record<string, number[][]>, device: string, tier: string) =>
     req<RunResult>("/v1/runs/screenlight", json({ assay_id: assayId, frames, device, tier })),
-  runs: (assayId?: string) => req<RunRow[]>(`/v1/runs${assayId ? `?assay_id=${assayId}` : ""}`),
-  run: (id: string) => req<RunRow>(`/v1/runs/${id}`),
-  setTruth: (runId: string, value: number) => req<{ accuracy: Accuracy }>(`/v1/runs/${runId}/truth`, json({ value })),
+  runs: (assayId?: string) => req<RunRow[]>(`/v1/runs${assayId ? `?assay_id=${encodeURIComponent(assayId)}` : ""}`),
+  run: (id: string) => req<RunRow>(`/v1/runs/${encodeURIComponent(id)}`),
+  setTruth: (runId: string, value: number) =>
+    req<{ accuracy: Accuracy }>(`/v1/runs/${encodeURIComponent(runId)}/truth`, json({ value })),
   addSample: (runId: string, known: number) => req<{ samples: number }>("/v1/calibration/samples", json({ run_id: runId, known_value: known })),
   train: (assayId: string, device: string) => req<{ metrics: Record<string, unknown> }>("/v1/calibration/train", json({ assay_id: assayId, device })),
   calibration: (assayId: string, device: string) =>
     req<{ samples: { known_value: number; created: number }[]; model: { kind: string; metrics: Record<string, unknown> } | null }>(
-      `/v1/calibration/${assayId}?device=${encodeURIComponent(device)}`),
+      `/v1/calibration/${encodeURIComponent(assayId)}?device=${encodeURIComponent(device)}`),
   agent: (body: { assay_id: string; step_id: string; message: string; history: { role: string; content: string }[]; tier: string }) =>
     req<AgentReply>("/v1/agent/turn", json(body)),
   transcribe: (audio: Blob) => {
     const fd = new FormData(); fd.append("audio", audio, "voice.wav");
-    return req<{ text: string }>("/v1/transcribe", { method: "POST", body: fd });
+    return req<{ text: string; agent: string }>("/v1/transcribe", { method: "POST", body: fd });
   },
 };

@@ -1,6 +1,10 @@
+import struct
+
 import cv2
+import httpx
 import numpy as np
 
+from sift.agent.client import MetaClient
 from tests.test_core import fake_scan, photo_of_card
 
 
@@ -152,3 +156,44 @@ def test_agent_turn_checks_tier_and_runnable(client):
     assert r.status_code == 401
     r = client.post("/v1/agent/turn", json={"assay_id": "honey-pollen-origin", "message": "hi"})
     assert r.status_code == 409
+
+
+# ---- voice transcription ---------------------------------------------------------------------
+
+def _wav_16k_mono():
+    """Smallest WAV sniff_audio accepts: 44-byte header, mono 16-bit PCM at 16 kHz, no samples."""
+    return struct.pack("<4sI4s4sIHHIIHH4sI", b"RIFF", 36, b"WAVE", b"fmt ", 16, 1, 1, 16000, 32000, 2, 16,
+                       b"data", 0)
+
+
+def _keyed_client_with_meta(make_client, handler, **env):
+    c = make_client(MODEL_API_KEY="test-key", **env)
+    c.app.state.container.client = MetaClient(c.app.state.container.settings,
+                                              transport=httpx.MockTransport(handler), retries=0, backoff=0)
+    return c
+
+
+def test_transcribe_without_key_is_unavailable(client):
+    r = client.post("/v1/transcribe", files={"audio": ("voice.wav", _wav_16k_mono(), "audio/wav")})
+    assert r.status_code == 503
+    assert r.json()["error"]["code"] == "unavailable"
+
+
+def test_transcribe_returns_text_and_agent(make_client):
+    c = _keyed_client_with_meta(make_client, lambda req: httpx.Response(200, json={"transcript": "next step"}))
+    r = c.post("/v1/transcribe", files={"audio": ("voice.wav", _wav_16k_mono(), "audio/wav")})
+    assert r.status_code == 200, r.json()
+    assert r.json() == {"text": "next step", "agent": "muse-voice"}
+
+
+def test_transcribe_meta_outage_stays_unavailable(make_client):
+    c = _keyed_client_with_meta(make_client, lambda req: httpx.Response(503, text="down"))
+    r = c.post("/v1/transcribe", files={"audio": ("voice.wav", _wav_16k_mono(), "audio/wav")})
+    assert r.status_code == 503
+    assert "Type your message instead" in r.json()["error"]["message"]
+
+
+def test_transcribe_rejects_non_wav(make_client):
+    c = _keyed_client_with_meta(make_client, lambda req: httpx.Response(200, json={"transcript": "x"}))
+    r = c.post("/v1/transcribe", files={"audio": ("voice.wav", b"not audio" * 100, "audio/wav")})
+    assert r.status_code == 422

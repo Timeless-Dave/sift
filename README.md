@@ -55,7 +55,9 @@ Sift will not:
 | SAM 3.1 | Segments the sample inside the ring; falls back to Sift's own segmentation if unavailable |
 
 Without `MODEL_API_KEY` the app still works: guidance follows the written protocol and reports
-come from a template. Every response says which one produced it.
+come from a template. Every response says which one produced it. The exception is voice
+transcription, which has no offline mode: without the key `POST /v1/transcribe` answers
+`503`, so type your message instead.
 
 SAM 3.1 segments over the Responses API (`POST /responses`; see the [SAM overview](https://dev.meta.ai/docs/sam/overview)).
 The path stays configurable (`SIFT_SAM_PATH`) in case the API moves.
