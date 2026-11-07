@@ -15,9 +15,9 @@ from .. import __version__
 from ..core.config import Settings, get_settings
 from ..core.errors import SiftError
 from ..core.logging import request_id, setup_logging
-from ..domain import registry
+from ..domain import foods, registry
 from .deps import Container, client_ip
-from .routes import admin, agent, assays, calibration, runs
+from .routes import admin, agent, assays, calibration, identify, runs
 
 log = logging.getLogger("sift.http")
 
@@ -39,6 +39,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or get_settings()
     settings.validate()
     registry.load_all()
+    foods.load_all()
     setup_logging()
     app = FastAPI(title="Sift Lab API", version=__version__,
                   description="Run food-fraud screening assays from a phone camera or the Sift device. "
@@ -108,6 +109,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return {"ok": True, "version": __version__, "agent": "muse-spark" if c.client.online else "offline",
                 "chat_model": settings.chat_model}
 
-    for module in (assays, runs, calibration, agent, admin):
+    for module in (assays, runs, calibration, agent, admin, identify):
         app.include_router(module.router)
     return app
