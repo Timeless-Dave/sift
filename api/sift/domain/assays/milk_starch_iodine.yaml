@@ -33,6 +33,8 @@ protocol:
 analysis:
   type: colorimetric
   roi: window
+  # SAM 3.1 concept prompt: a short noun phrase. Matched on synthetic cards only; check on real photos.
+  sam_prompt: circle
   feature: blueness
   unit: "% starch (w/v)"
   qualitative:

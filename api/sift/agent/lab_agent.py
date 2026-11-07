@@ -176,7 +176,7 @@ class LabAgent:
                 "how confident Sift is and why, and what lab method would confirm it.")},
         ]
         try:
-            msg = self.client.chat(messages, max_tokens=300)
+            msg = self.client.chat(messages)
         except MetaUnavailable as exc:
             log.warning("report failed: %s", exc)
             return {"agent": "offline", "text": template, "fallback": "agent_unavailable"}

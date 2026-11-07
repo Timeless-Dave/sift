@@ -30,6 +30,18 @@ def segment_sample(lab: np.ndarray) -> np.ndarray:
     return sample
 
 
+def pick_sam_mask(masks: list[np.ndarray], circle: np.ndarray, inside_min: float = 0.8) -> np.ndarray | None:
+    """Choose the SAM match that is the sample: most pixels in the read circle, and at least
+    `inside_min` of its pixels inside it. This drops the printed ring, the card and stray objects."""
+    best, best_n = None, 0
+    for m in masks:
+        total = int(m.sum())
+        n = int((m & circle).sum())
+        if total and n / total >= inside_min and n > best_n:
+            best, best_n = m, n
+    return best
+
+
 def features_from_lab(lab: np.ndarray) -> dict:
     L, a, b = (float(v) for v in np.median(lab, axis=0))
     chroma = math.hypot(a, b)
@@ -97,7 +109,8 @@ def apply_curve(curve: dict, x: float) -> tuple[float, bool]:
     return float(np.interp(x, xs, ys)), inside
 
 
-def analyze(image_bgr: np.ndarray, assay: dict, model: dict | None, sam_mask: np.ndarray | None = None) -> dict:
+def analyze(image_bgr: np.ndarray, assay: dict, model: dict | None,
+            sam_masks: list[np.ndarray] | None = None) -> dict:
     spec = assay["analysis"]
     try:
         reading = card.read_card(image_bgr)
@@ -107,10 +120,12 @@ def analyze(image_bgr: np.ndarray, assay: dict, model: dict | None, sam_mask: np
             "fix": "Fit the whole card in the frame, hold steady, and make sure all four corner squares show."}]}}
     lab_all, circle = card.window_pixels_lab(reading)
     sample_sel = segment_sample(lab_all)
-    if sam_mask is not None:
-        sam_in_circle = sam_mask[circle].astype(bool)
+    used_sam = False
+    sam_mask = pick_sam_mask(sam_masks, circle) if sam_masks else None
+    if sam_mask is not None and sam_mask.shape == circle.shape:
+        sam_in_circle = sam_mask[circle]
         if sam_in_circle.sum() > 0.04 * len(sam_in_circle):
-            sample_sel = sam_in_circle
+            sample_sel, used_sam = sam_in_circle, True
     sample_mask = np.zeros(circle.shape, bool)
     sample_mask[circle] = sample_sel
 
@@ -118,7 +133,7 @@ def analyze(image_bgr: np.ndarray, assay: dict, model: dict | None, sam_mask: np
     feats = features_from_lab(lab_all[sample_sel]) if sample_sel.any() else {}
     out: dict = {"quality": quality.as_dict(), "features": feats,
                  "card": {"fit_delta_e": round(reading.fit_delta_e, 2), "swatches": reading.swatch_measured},
-                 "segmentation": "sam-3.1" if sam_mask is not None else "card-window"}
+                 "segmentation": "sam-3.1" if used_sam else "card-window"}
     if not quality.ok:
         out["status"] = "rejected"
         return out

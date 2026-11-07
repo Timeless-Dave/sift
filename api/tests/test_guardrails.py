@@ -110,3 +110,25 @@ def test_agent_turn_ignores_unknown_tools():
                            {"function": {"name": "rm_rf", "arguments": "{}"}}]}}]})
     out = LabAgent(_client(handler)).turn("milk-starch-iodine", "boil", [], "done", "public")
     assert out["step_id"] == "mix" and [a["name"] for a in out["actions"]] == ["go_to_step"]
+
+
+def test_chat_requests_auto_tools_and_reasoning_budget():
+    import json as _json
+    seen = {}
+
+    def handler(request):
+        seen.update(_json.loads(request.content))
+        return httpx.Response(200, json={"choices": [{"finish_reason": "tool_calls", "message": {"content": None,
+            "tool_calls": [{"function": {"name": "capture_review", "arguments": '{"sample_visible": true, '
+                            '"matches_expected": true, "issues": [], "advice": "ok"}'}}]}}]})
+    review = LabAgent(_client(handler)).review_capture(ASSAY, b"\xff\xd8jpeg")
+    assert review["sample_visible"] is True
+    assert seen["tool_choice"] == "auto" and seen["reasoning_effort"] == "minimal" and seen["max_tokens"] >= 2000
+
+
+def test_reply_cut_off_by_reasoning_falls_back():
+    def handler(request):
+        return httpx.Response(200, json={"choices": [{"finish_reason": "length",
+                                                      "message": {"content": None}}]})
+    out = LabAgent(_client(handler)).write_report(ASSAY, FLAG, "public")
+    assert out["agent"] == "offline" and out["fallback"] == "agent_unavailable"

@@ -94,7 +94,7 @@ class RunService:
         img = _decode(raw, self.s.limits.max_image_bytes)
         model = self.store.get_model(assay_id, who.device, who.owner)
 
-        sam_mask, jpeg = None, None
+        sam_masks, jpeg = None, None
         try:
             warped = card.detect_and_rectify(img)
             ok, enc = cv2.imencode(".jpg", warped, [cv2.IMWRITE_JPEG_QUALITY, 85])
@@ -103,11 +103,12 @@ class RunService:
             warped = None
         if jpeg and self.client.online:
             try:
-                sam_mask = self.client.segment(jpeg, "the sample inside the black ring", warped.shape[:2])
+                prompt = assay["analysis"].get("sam_prompt", "circle")
+                sam_masks = self.client.segment(jpeg, prompt, warped.shape[:2])
             except MetaUnavailable as exc:
                 log.info("SAM unavailable, using card-window segmentation", extra={"fields": {"why": str(exc)[:120]}})
 
-        result = colorimetric.analyze(img, assay, model, sam_mask)
+        result = colorimetric.analyze(img, assay, model, sam_masks)
         review = self.agent.review_capture(assay, jpeg) if jpeg and result["status"] == "ok" else None
         if review and not review["sample_visible"]:
             result["quality"]["problems"].append({

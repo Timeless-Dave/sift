@@ -44,10 +44,12 @@ class Settings:
     meta_base_url: str = field(default_factory=lambda: _env("META_BASE_URL", "https://api.meta.ai/v1"))
     chat_model: str = field(default_factory=lambda: _env("SIFT_CHAT_MODEL", "muse-spark-1.3"))
     transcribe_model: str = field(default_factory=lambda: _env("SIFT_TRANSCRIBE_MODEL", "muse-voice-transcribe-1.0"))
+    # Muse Spark reasons before it answers, and reasoning tokens count against max_tokens.
+    reasoning_effort: str = field(default_factory=lambda: _env("SIFT_REASONING_EFFORT", "minimal"))
     sam_model: str = field(default_factory=lambda: _env("SIFT_SAM_MODEL", "sam-3.1"))
-    # Check the SAM 3.1 path against dev.meta.ai/docs/models; Sift falls back to its own
-    # segmentation whenever the call fails.
-    sam_path: str = field(default_factory=lambda: _env("SIFT_SAM_PATH", "/segment"))
+    # SAM 3.1 segments over the Responses API (dev.meta.ai/docs/sam/overview); Sift falls
+    # back to its own segmentation whenever the call fails.
+    sam_path: str = field(default_factory=lambda: _env("SIFT_SAM_PATH", "/responses"))
     transcribe_path: str = field(default_factory=lambda: _env("SIFT_TRANSCRIBE_PATH", "/asr/transcribe"))
     db_path: Path = field(default_factory=lambda: Path(_env("SIFT_DB", "sift.db")))
     require_api_key: bool = field(default_factory=lambda: _env("SIFT_REQUIRE_KEY", "0") == "1")
