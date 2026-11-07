@@ -48,6 +48,7 @@ class Settings:
     # Check the SAM 3.1 path against dev.meta.ai/docs/models; Sift falls back to its own
     # segmentation whenever the call fails.
     sam_path: str = field(default_factory=lambda: _env("SIFT_SAM_PATH", "/segment"))
+    transcribe_path: str = field(default_factory=lambda: _env("SIFT_TRANSCRIBE_PATH", "/asr/transcribe"))
     db_path: Path = field(default_factory=lambda: Path(_env("SIFT_DB", "sift.db")))
     require_api_key: bool = field(default_factory=lambda: _env("SIFT_REQUIRE_KEY", "0") == "1")
     admin_token: str = field(default_factory=lambda: _env("SIFT_ADMIN_TOKEN"))

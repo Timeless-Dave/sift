@@ -1,7 +1,7 @@
 """Thin client for Meta Model API (OpenAI-compatible, https://api.meta.ai/v1).
 
 Chat and vision go through /chat/completions with OpenAI-style messages and tools.
-Transcription goes through /audio/transcriptions. SAM 3.1's request shape should be checked
+Transcription goes through /asr/transcribe. SAM 3.1's endpoint and request shape should be checked
 against dev.meta.ai/docs/models; the path is configurable and every caller has a fallback.
 
 Without MODEL_API_KEY the client reports itself offline and callers use their deterministic
@@ -134,10 +134,14 @@ class MetaClient:
         return args
 
     def transcribe(self, audio: bytes, filename: str, mime: str) -> str:
-        r = self._post("/audio/transcriptions",
+        r = self._post(self.s.transcribe_path,
                        data={"model": self.s.transcribe_model},
                        files={"file": (filename, audio, mime)})
-        return str(r.json().get("text", "")).strip()
+        data = r.json()
+        text = data.get("text") or data.get("transcript") or ""
+        if not text and isinstance(data.get("segments"), list):
+            text = " ".join(str(seg.get("text", "")) for seg in data["segments"] if isinstance(seg, dict))
+        return str(text).strip()
 
     def segment(self, image_jpeg: bytes, prompt: str, shape: tuple[int, int]) -> np.ndarray:
         """Ask SAM 3.1 for a mask of `prompt`. Returns a boolean mask of `shape` (h, w)."""
