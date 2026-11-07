@@ -22,6 +22,30 @@ this contract.
 Not available from a stock phone: infrared (cameras filter it out, and the Face ID IR hardware is
 closed to apps), UV, and true ultrasound. Sift never claims them.
 
+## Where Sift sits
+
+Lab methods for food authentication use NIR, mid-IR and FTIR, Raman, hyperspectral imaging,
+ultrasound and photoacoustics, paired with chemometric models (review: Chaudhary et al. 2022,
+[Spectroscopic techniques for authentication of animal origin foods](https://pmc.ncbi.nlm.nih.gov/articles/PMC9531581/)).
+Consumer handheld scanners (SCiO, Tellspec) moved to B2B. Two reasons stand out: what a pocket
+sensor can see is limited, and a classifier needs a large reference database of authentic and
+adulterated samples that nobody built for shoppers. Smartphone-sized NIR modules exist for
+spice-fraud checks but don't ship in phones.
+
+So Sift's bet has two parts:
+
+1. **The phone you already have.** Visible-light "spectra" from the screen and torch, plus
+   audible and near-ultrasound acoustics. Built to accept an NIR source when phones carry one.
+2. **The reference library is the product.** Genuine and adulterated scans per food and phone
+   model, built in the open, with "no verdict yet" until the library supports one.
+
+Physical limits that every food profile must respect: light reads only the surface and the first
+few millimetres, and opaque or tinted packaging blocks it. Each profile says where to hold the
+phone, and the quality gates reject scans that can't see the food. Published optical and
+ultrasound work on cultivated meat monitors *production*, such as cells on scaffolds and
+bioreactor density. It doesn't tell cultured from conventional at the shelf, which is why that
+target stays `research`.
+
 ## Honesty rules
 
 1. **No verdict without evidence.** A verdict comes only from (a) comparison with at least
