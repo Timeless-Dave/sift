@@ -98,3 +98,15 @@ def test_agent_turn_ignores_unknown_tools():
                            {"function": {"name": "rm_rf", "arguments": "{}"}}]}}]})
     out = LabAgent(_client(handler)).turn("milk-starch-iodine", "boil", [], "done", "public")
     assert out["step_id"] == "mix" and [a["name"] for a in out["actions"]] == ["go_to_step"]
+
+
+@pytest.mark.parametrize("text", ["No starch detected. This milk is pure.", "No starch detected. The milk is safe.",
+                                  "No starch was found and it looks completely genuine."])
+def test_bare_safety_and_purity_claims_blocked(text):
+    v = g.check_report(text, PASS, ASSAY)
+    assert not v.ok and "unsupported_safety_claim" in v.reasons
+
+
+def test_negated_purity_is_not_a_safety_claim():
+    v = g.check_report("Starch detected, so this milk is not pure. Sift is 74% confident.", FLAG, ASSAY)
+    assert "unsupported_safety_claim" not in v.reasons

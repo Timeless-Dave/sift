@@ -80,6 +80,9 @@ def fit_curve(points: list[tuple[float, float]]) -> dict:
     order = np.argsort(xs)
     xs_sorted = [xs[i] for i in order]
     cs_sorted = [concs[i] for i in order]
+    if any(b - a <= 1e-9 for a, b in zip(xs_sorted, xs_sorted[1:], strict=False)):
+        raise ValueError("Two known levels gave the same reading, so the curve can't tell them apart. "
+                         "Check the samples.")
     if any(cs_sorted[i] > cs_sorted[i + 1] for i in range(len(cs_sorted) - 1)) and \
        any(cs_sorted[i] < cs_sorted[i + 1] for i in range(len(cs_sorted) - 1)):
         raise ValueError("Feature does not change steadily with concentration; check the samples.")

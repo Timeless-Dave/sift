@@ -6,6 +6,8 @@ services:
     env_file: ./api/.env
     environment:
       SIFT_ENV: production
+      # Must override the relative dev path in .env: the root filesystem is read-only.
+      SIFT_DB: /data/sift.db
       SIFT_TRUST_PROXY: "1"
       SIFT_CORS: http://localhost:8080
     volumes:

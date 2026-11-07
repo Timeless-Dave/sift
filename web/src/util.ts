@@ -35,6 +35,9 @@ export function esc(s: unknown): string {
   return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
 }
 
+/** Only http(s) links from API data become anchors; anything else renders as text. */
+export const safeUrl = (u: unknown) => (typeof u === "string" && /^https?:\/\//i.test(u) ? u : "");
+
 export function el<T extends HTMLElement = HTMLElement>(html: string): T {
   const t = document.createElement("template");
   t.innerHTML = html.trim();

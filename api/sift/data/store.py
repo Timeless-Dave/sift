@@ -109,6 +109,12 @@ class Store:
         with self._conn() as c:
             c.execute("UPDATE runs SET truth=? WHERE id=?", (truth, run_id))
 
+    def run_owner(self, run_id: str) -> str | None:
+        """The key prefix a run was made with, or None for a public run."""
+        with self._conn() as c:
+            row = c.execute("SELECT api_key FROM runs WHERE id=?", (run_id,)).fetchone()
+        return row["api_key"] if row else None
+
     def get_run(self, run_id: str, viewer: str | None = None, internal: bool = False) -> dict | None:
         """Runs made with an API key are visible only to that key; public runs to everyone."""
         with self._conn() as c:

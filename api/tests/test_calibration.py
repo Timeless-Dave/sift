@@ -106,3 +106,11 @@ def test_v02_database_is_migrated(tmp_path, monkeypatch):
     assert [s["id"] for s in store.samples("milk-starch-iodine", "p")] == ["s1"]
     assert store.get_model("milk-starch-iodine", "p", owner="sift_abc") is None
     Store(db)  # second open is a no-op
+
+
+def test_key_cannot_label_public_runs(make_client):
+    c = make_client(SIFT_ADMIN_TOKEN=ADMIN)
+    key = c.post("/v1/keys", json={"owner": "lab"}, headers={"X-Admin-Token": ADMIN}).json()["key"]
+    public = post_card(c).json()["run_id"]
+    assert c.post(f"/v1/runs/{public}/truth", json={"value": 0}, headers={"X-Sift-Key": key}).status_code == 403
+    assert c.get("/v1/assays/milk-starch-iodine").json()["accuracy"]["n"] == 0
