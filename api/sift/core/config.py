@@ -51,6 +51,7 @@ class Settings:
     transcribe_path: str = field(default_factory=lambda: _env("SIFT_TRANSCRIBE_PATH", "/asr/transcribe"))
     db_path: Path = field(default_factory=lambda: Path(_env("SIFT_DB", "sift.db")))
     require_api_key: bool = field(default_factory=lambda: _env("SIFT_REQUIRE_KEY", "0") == "1")
+    protect_calibration: bool = field(default_factory=lambda: _env("SIFT_PROTECT_CALIBRATION", "0") == "1")
     admin_token: str = field(default_factory=lambda: _env("SIFT_ADMIN_TOKEN"))
     trust_proxy: bool = field(default_factory=lambda: _env("SIFT_TRUST_PROXY", "0") == "1")
     cors_origins: tuple[str, ...] = field(
