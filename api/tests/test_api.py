@@ -134,6 +134,58 @@ def test_rate_limit(make_client):
     assert int(c.get("/v1/runs").headers["Retry-After"]) >= 1
 
 
+def test_rate_limit_ignores_spoofed_xff_from_untrusted_peer(make_client):
+    c = make_client(SIFT_RATE_PUBLIC=2, SIFT_TRUST_PROXY=1)
+    # TestClient's peer ("testclient") is not the Docker proxy, so X-Forwarded-For is ignored
+    # and rotating it per request still shares one bucket.
+    assert c.get("/v1/runs", headers={"X-Forwarded-For": "1.1.1.1"}).status_code == 200
+    assert c.get("/v1/runs", headers={"X-Forwarded-For": "2.2.2.2"}).status_code == 200
+    assert c.get("/v1/runs", headers={"X-Forwarded-For": "3.3.3.3"}).status_code == 429
+
+
+def test_rate_limit_ignores_xff_when_trust_proxy_off(make_client):
+    c = make_client(SIFT_RATE_PUBLIC=2)  # SIFT_TRUST_PROXY defaults to 0
+    assert c.get("/v1/runs", headers={"X-Forwarded-For": "1.1.1.1"}).status_code == 200
+    assert c.get("/v1/runs", headers={"X-Forwarded-For": "2.2.2.2"}).status_code == 200
+    assert c.get("/v1/runs", headers={"X-Forwarded-For": "3.3.3.3"}).status_code == 429
+
+
+def test_client_ip_takes_last_entry_from_trusted_proxy():
+    from types import SimpleNamespace
+
+    from sift.http.deps import client_ip
+
+    def ip(xff, peer, trust=True):
+        headers = {"x-forwarded-for": xff} if xff else {}
+        req = SimpleNamespace(headers=headers, client=SimpleNamespace(host=peer))
+        c = SimpleNamespace(settings=SimpleNamespace(trust_proxy=trust))
+        return client_ip(req, c)
+
+    # Trusted Docker peer (nginx): nginx appends the real client last, so the last entry wins.
+    assert ip("1.2.3.4", "172.18.0.3") == "1.2.3.4"
+    assert ip("spoofed, 1.2.3.4", "172.18.0.3") == "1.2.3.4"
+    assert ip("1.2.3.4, 1.2.3.4", "10.0.0.5") == "1.2.3.4"  # caddy + nginx both saw the client
+    assert ip(None, "172.18.0.3") == "172.18.0.3"
+    assert ip("  ", "172.18.0.3") == "172.18.0.3"
+    # Untrusted peers (direct internet, LAN, test harness): X-Forwarded-For is ignored.
+    assert ip("1.2.3.4", "203.0.113.5") == "203.0.113.5"
+    assert ip("spoofed, 1.2.3.4", "192.168.1.10") == "192.168.1.10"
+    assert ip("1.2.3.4", "testclient") == "testclient"
+    # Trust off: always the immediate peer.
+    assert ip("1.2.3.4", "172.18.0.3", trust=False) == "172.18.0.3"
+
+
+def test_docs_disabled_in_production(make_client):
+    prod = make_client(SIFT_ENV="production", SIFT_CORS="http://localhost:8080")
+    assert prod.get("/docs").status_code == 404
+    assert prod.get("/openapi.json").status_code == 404
+
+
+def test_docs_enabled_in_development(client):
+    assert client.get("/docs").status_code == 200
+    assert client.get("/openapi.json").status_code == 200
+
+
 def test_agent_offline_matches_whole_words(client):
     def step_after(message, step="boil"):
         return client.post("/v1/agent/turn", json={"assay_id": "milk-starch-iodine", "step_id": step,

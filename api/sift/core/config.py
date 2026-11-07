@@ -57,6 +57,7 @@ class Settings:
     require_api_key: bool = field(default_factory=lambda: _env("SIFT_REQUIRE_KEY", "0") == "1")
     protect_calibration: bool = field(default_factory=lambda: _env("SIFT_PROTECT_CALIBRATION", "0") == "1")
     admin_token: str = field(default_factory=lambda: _env("SIFT_ADMIN_TOKEN"))
+    # When 1, trust X-Forwarded-For only from the Docker-network proxy and rate-limit off its last entry.
     trust_proxy: bool = field(default_factory=lambda: _env("SIFT_TRUST_PROXY", "0") == "1")
     cors_origins: tuple[str, ...] = field(
         default_factory=lambda: tuple(o.strip() for o in _env("SIFT_CORS", "*").split(",") if o.strip())
