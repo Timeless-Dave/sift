@@ -110,4 +110,3 @@ def test_agent_turn_ignores_unknown_tools():
                            {"function": {"name": "rm_rf", "arguments": "{}"}}]}}]})
     out = LabAgent(_client(handler)).turn("milk-starch-iodine", "boil", [], "done", "public")
     assert out["step_id"] == "mix" and [a["name"] for a in out["actions"]] == ["go_to_step"]
-
