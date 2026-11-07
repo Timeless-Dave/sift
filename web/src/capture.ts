@@ -1,3 +1,4 @@
+import { captureScreenlight } from "./sensors/screenlight";
 import { el } from "./util";
 
 async function openCamera(facing: "environment" | "user", width = 1920, height = 1080) {
@@ -48,15 +49,9 @@ export function cardCapture(root: HTMLElement, onImage: (jpeg: Blob) => void): (
   return () => stop(stream);
 }
 
-const COLOURS: Record<string, string> = {
-  white: "#ffffff", black: "#000000", red: "#ff0000", orange: "#ff8000", yellow: "#ffff00",
-  lime: "#80ff00", green: "#00ff00", teal: "#00ff80", cyan: "#00ffff", blue: "#0000ff",
-  violet: "#8000ff", magenta: "#ff00ff",
-};
-
 /**
- * Screen-light scan: the screen shows each colour in turn while the front camera samples
- * the centre of the frame. Returns colour -> list of mean [r,g,b] (0..1) per frame.
+ * Screen-light scan for the reagent lab tests: countdown UI plus the shared sweep in
+ * sensors/screenlight.ts. Returns colour -> list of mean [r,g,b] (0..1) per frame.
  */
 export function screenlightCapture(
   root: HTMLElement, sequence: string[], frameMs: number,
@@ -71,72 +66,47 @@ export function screenlightCapture(
     </div>`);
   root.append(box);
   const err = box.querySelector<HTMLElement>(".cam-error")!;
-  let stream: MediaStream | null = null;
-  let flash: HTMLElement | null = null;
-  let cancelled = false;
-  let lock: { release(): Promise<void> } | null = null;
+  const ctrl = new AbortController();
+  let running = false;
 
   box.querySelector("button")!.addEventListener("click", async () => {
+    if (running) return;
+    running = true;
     err.textContent = "";
+    const countdown = el(`<div class="flash" role="status" aria-live="polite"><span>Starting in 3</span></div>`);
     try {
-      stream = await openCamera("user", 640, 480);
-      const track = stream.getVideoTracks()[0];
-      // Lock exposure and white balance where the browser allows it, so each colour is comparable.
-      try { await track.applyConstraints({ advanced: [{ exposureMode: "manual", whiteBalanceMode: "manual" } as MediaTrackConstraintSet] }); } catch { /* unsupported */ }
-      try { lock = await (navigator as unknown as { wakeLock?: { request(t: string): Promise<{ release(): Promise<void> }> } }).wakeLock?.request("screen") ?? null; } catch { /* ignore */ }
-      const video = document.createElement("video");
-      video.playsInline = true; video.muted = true; video.srcObject = stream;
-      await video.play();
-
-      flash = el(`<div class="flash" role="status" aria-live="polite"><span>Starting in 3</span></div>`);
-      document.body.append(flash);
-      try { await flash.requestFullscreen?.(); } catch { /* optional */ }
-      for (let n = 3; n > 0; n--) { flash.querySelector("span")!.textContent = `Starting in ${n}`; await wait(1000); }
-      flash.querySelector("span")!.textContent = "";
-
-      const c = document.createElement("canvas");
-      c.width = 64; c.height = 48;
-      const ctx = c.getContext("2d", { willReadFrequently: true })!;
-      const frames: Record<string, number[][]> = {};
-      for (const name of sequence) {
-        if (cancelled) return;
-        const colour = COLOURS[name];
-        if (!colour) continue; // unknown names are never trusted as CSS
-        flash.style.background = colour;
-        await wait(180); // let the camera settle on the new light
-        const end = performance.now() + Math.max(200, frameMs - 180);
-        frames[name] = [];
-        while (performance.now() < end) {
-          ctx.drawImage(video, 0, 0, 64, 48);
-          frames[name].push(meanCentre(ctx.getImageData(19, 14, 26, 20).data));
-          await wait(60);
-        }
+      document.body.append(countdown);
+      for (let n = 3; n > 0; n--) {
+        countdown.querySelector("span")!.textContent = `Starting in ${n}`;
+        await wait(1000, ctrl.signal);
       }
-      finish();
+      countdown.remove();
+      const { frames } = await captureScreenlight({ sequence, frameMs, signal: ctrl.signal });
       onFrames(frames);
     } catch (e) {
-      finish();
+      countdown.remove();
+      if (ctrl.signal.aborted) return;
       err.textContent = (e as Error).message || "The scan didn't complete.";
+    } finally {
+      running = false;
     }
   });
-
-  function finish() {
-    stop(stream); stream = null;
-    if (document.fullscreenElement) document.exitFullscreen().catch(() => undefined);
-    flash?.remove(); flash = null;
-    lock?.release().catch(() => undefined); lock = null;
-  }
-  return () => { cancelled = true; finish(); };
+  return () => ctrl.abort();
 }
 
-function meanCentre(px: Uint8ClampedArray): number[] {
-  let r = 0, g = 0, b = 0;
-  const n = px.length / 4;
-  for (let i = 0; i < px.length; i += 4) { r += px[i]; g += px[i + 1]; b += px[i + 2]; }
-  return [r / n / 255, g / n / 255, b / n / 255];
-}
-
-const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+const wait = (ms: number, signal?: AbortSignal) =>
+  new Promise<void>((resolve, reject) => {
+    if (signal?.aborted) return reject(new DOMException("Cancelled.", "AbortError"));
+    const timer = setTimeout(() => {
+      signal?.removeEventListener("abort", onAbort);
+      resolve();
+    }, ms);
+    const onAbort = () => {
+      clearTimeout(timer);
+      reject(new DOMException("Cancelled.", "AbortError"));
+    };
+    signal?.addEventListener("abort", onAbort, { once: true });
+  });
 
 /**
  * Muse Voice Transcribe takes only mono 16-bit PCM WAV at 16 or 24 kHz, while browsers record
