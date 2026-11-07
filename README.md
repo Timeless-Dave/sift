@@ -148,6 +148,19 @@ Phone cameras need HTTPS outside `localhost`. Put the web container behind HTTPS
 
 Print `docs/sift-reference-card.svg` at 100% on plain white paper.
 
+### Dependencies
+
+Builds are pinned: the API installs `api/requirements.lock` with `--require-hashes`, the web app uses
+`web/package-lock.json`, base images are pinned by digest, and CI actions by commit SHA. Dependabot
+opens the update PRs. To change an API dependency, edit the range in `requirements.txt` (or
+`requirements-dev.txt`), then regenerate both locks inside the image the API runs on:
+
+```bash
+docker run --rm -v "$PWD/api":/w -w /w python:3.12-slim sh -c "pip install -q pip-tools && \
+  pip-compile -q --generate-hashes --strip-extras --allow-unsafe -o requirements.lock requirements.txt && \
+  pip-compile -q --generate-hashes --strip-extras --allow-unsafe -o requirements-dev.lock requirements-dev.txt"
+```
+
 ## Sources
 
 - Song et al., [Quantification of extra virgin olive oil adulteration using smartphone videos](https://pure.ulster.ac.uk/en/publications/07a2fdf5-cbb8-49c2-8d5a-921f26f0711b), Ulster University

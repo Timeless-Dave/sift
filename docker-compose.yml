@@ -21,7 +21,7 @@ services:
   # Optional rate-limit store: no published port, reachable only by the api service.
   # Persistence is off (limits are ephemeral) so the read-only filesystem is fine.
   redis:
-    image: redis:7-alpine
+    image: redis:7-alpine@sha256:c5d34a98396a4775e223c74e929162c35c5a2182901ba26b50ade939941ce14b
     command: ["redis-server", "--save", "", "--appendonly", "no"]
     read_only: true
     restart: unless-stopped

@@ -1,3 +1,4 @@
+# Top-level ranges. Installs use the hashed locks: after editing, regenerate them (see README).
 fastapi>=0.115
 uvicorn[standard]>=0.30
 python-multipart>=0.0.9
