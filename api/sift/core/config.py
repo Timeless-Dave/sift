@@ -55,6 +55,7 @@ class Settings:
     # back to its own segmentation whenever the call fails.
     sam_path: str = field(default_factory=lambda: _env("SIFT_SAM_PATH", "/responses"))
     transcribe_path: str = field(default_factory=lambda: _env("SIFT_TRANSCRIBE_PATH", "/asr/transcribe"))
+    off_base_url: str = field(default_factory=lambda: _env("SIFT_OFF_BASE_URL", "https://world.openfoodfacts.org"))
     db_path: Path = field(default_factory=lambda: Path(_env("SIFT_DB", "sift.db")))
     # Empty means the in-process limiter (one worker); set to redis://... to share limits across workers.
     redis_url: str = field(default_factory=lambda: _env("SIFT_REDIS_URL"))
