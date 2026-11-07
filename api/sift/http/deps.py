@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 
 from fastapi import Depends, Header, Request
@@ -10,9 +11,22 @@ from ..agent.client import MetaClient
 from ..agent.lab_agent import LabAgent
 from ..core.config import Settings
 from ..core.errors import Unauthorized
-from ..core.security import RateLimiter, hash_key
+from ..core.security import RateLimiter, RedisRateLimiter, hash_key
 from ..data.store import Store
 from ..services.runs import CalibrationService, RunService
+
+log = logging.getLogger("sift.http.deps")
+
+
+def build_limiter(settings: Settings) -> RateLimiter:
+    """Redis-backed limiter when SIFT_REDIS_URL is set, else the in-process one."""
+    if not settings.redis_url:
+        return RateLimiter()
+    try:
+        return RedisRateLimiter.from_url(settings.redis_url)
+    except Exception as exc:  # missing package or bad URL: stay up on the in-process limiter
+        log.warning("SIFT_REDIS_URL ignored (%s); using the in-process rate limiter.", type(exc).__name__)
+        return RateLimiter()
 
 
 @dataclass
@@ -31,7 +45,7 @@ class Container:
         client = MetaClient(settings)
         agent = LabAgent(client)
         return cls(settings, store, client, agent, RunService(settings, store, client, agent),
-                   CalibrationService(store), RateLimiter())
+                   CalibrationService(store), build_limiter(settings))
 
 
 def container(request: Request) -> Container:
