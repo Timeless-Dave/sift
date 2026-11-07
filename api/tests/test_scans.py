@@ -13,7 +13,7 @@ from sift.domain import foods, registry
 from sift.scan import features as F
 from sift.scan.matching import MIN_GENUINE
 from sift.scan.quality import check_capture
-from sift.scan.schemas import Capture, TorchCapture
+from sift.scan.schemas import BubbleCapture, Capture, ContactCapture, TorchCapture
 
 SEQ = F.SCREEN_SEQUENCE
 BINS = [200.0, 400.0, 800.0, 1600.0, 3200.0, 6400.0, 12800.0, 20000.0]
@@ -51,6 +51,24 @@ def vibration_cap(rng):
 
 def motion_cap():
     return {"max_rotation_dps": 4.2, "accel_jitter": 0.03}
+
+
+def contact_cap(rng, n_rings=6, red_shift=0.0, green_shift=0.0, clipped=0.0, dark_bright=False):
+    dark_base = 0.30 if dark_bright else 0.02
+    dark = [float(min(max(dark_base + rng.normal(0, 0.002), 0), 1)) for _ in range(3)]
+    base = [0.60 + red_shift, 0.45 + green_shift, 0.35]
+    rings = []
+    for i in range(n_rings):
+        decay = math.exp(-0.35 * i)
+        rings.append([float(min(max(v * decay + rng.normal(0, 0.003), 0), 1)) for v in base])
+    return {"dark": dark, "rings": rings, "clipped": float(clipped), "torch_available": True}
+
+
+def bubble_cap(rng, rise=1.5, fps=30.0, n=60, tracked=0.95):
+    track = [float(min(max(v, 0), 1)) for v in np.linspace(0.1, 0.9, n) + rng.normal(0, 0.005, size=n)]
+    rise_s = None if rise is None else float(rise + rng.normal(0, 0.05))
+    return {"fps": float(fps), "track": track, "rise_time_s": rise_s,
+            "tracked_fraction": float(min(max(tracked + rng.normal(0, 0.01), 0), 1))}
 
 
 def full_capture(rng, shift=0.0, pct=0.0):
@@ -406,3 +424,147 @@ def test_reference_labels_round_trip(client, label):
     assert body["status"] == "stored"
     row = client.get(f"/v1/scans/{body['scan_id']}").json()
     assert (row["label"], row["target"], row["value"]) == (label, "seed-oil-dilution", 20)
+
+
+def test_contact_features_log_ratios_and_chromaticity():
+    rng = np.random.default_rng(21)
+    raw = contact_cap(rng, n_rings=6)
+    vec = F.contact_vector(ContactCapture.model_validate(raw))
+    assert vec is not None and len(vec) == (6 - 1) * 3 + 2 == 17
+    assert all(math.isfinite(v) for v in vec)
+    assert sum(vec[:-2]) / len(vec[:-2]) < 0  # fall-off: outer rings darker than ring 0
+    diff = np.array(raw["rings"][0]) - np.array(raw["dark"])
+    total = float(diff.clip(min=0).sum())
+    assert vec[-2] == pytest.approx(float(diff[0] / total), abs=1e-9)
+    assert vec[-1] == pytest.approx(float(diff[1] / total), abs=1e-9)
+    cap = Capture.model_validate({"contact": raw, "bubble": bubble_cap(rng)})
+    assert set(F.extract_features(cap)) == {"contact", "bubble"}
+
+
+def test_contact_features_fixed_length_floor_and_no_torch():
+    rng = np.random.default_rng(22)
+    same_a = F.contact_vector(ContactCapture.model_validate(contact_cap(rng, n_rings=5)))
+    same_b = F.contact_vector(ContactCapture.model_validate(contact_cap(rng, n_rings=5)))
+    other = F.contact_vector(ContactCapture.model_validate(contact_cap(rng, n_rings=8)))
+    assert same_a is not None and same_b is not None and other is not None
+    assert len(same_a) == len(same_b) == (5 - 1) * 3 + 2
+    assert len(other) == (8 - 1) * 3 + 2
+    black = {"dark": [0.0, 0.0, 0.0], "rings": [[0.0, 0.0, 0.0]] * 4, "clipped": 0.0, "torch_available": True}
+    floored = F.contact_vector(ContactCapture.model_validate(black))
+    assert floored is not None and all(math.isfinite(v) for v in floored)
+    assert floored[-2:] == pytest.approx([1 / 3, 1 / 3])
+    dark = contact_cap(rng)
+    dark["torch_available"] = False
+    assert F.contact_vector(ContactCapture.model_validate(dark)) is None
+
+
+def test_bubble_features_speed_and_no_vector_without_rise():
+    rng = np.random.default_rng(23)
+    raw = bubble_cap(rng, rise=1.5, fps=30.0, n=60, tracked=0.95)
+    vec = F.bubble_vector(BubbleCapture.model_validate(raw))
+    assert vec is not None and len(vec) == 3
+    expected_speed = (raw["track"][-1] - raw["track"][0]) / ((len(raw["track"]) - 1) / raw["fps"])
+    assert vec[0] == pytest.approx(raw["rise_time_s"])
+    assert vec[1] == pytest.approx(expected_speed)
+    assert vec[2] == pytest.approx(raw["tracked_fraction"])
+    assert vec[1] > 0  # upward
+    missing = bubble_cap(rng, rise=None)
+    assert F.bubble_vector(BubbleCapture.model_validate(missing)) is None
+    cap = Capture.model_validate({"bubble": missing})
+    assert F.extract_features(cap) == {}
+
+
+def test_quality_contact_gates():
+    profile = foods.get("beef")
+    rng = np.random.default_rng(24)
+    good, usable = check_capture(Capture.model_validate({"contact": contact_cap(rng)}), profile)
+    assert good.ok and usable == {"contact"}
+    no_torch = contact_cap(rng)
+    no_torch["torch_available"] = False
+    quality, usable = check_capture(Capture.model_validate({"contact": no_torch}), profile)
+    assert not quality.ok and not usable and [p.code for p in quality.problems] == ["unavailable"]
+    glare = Capture.model_validate({"contact": contact_cap(rng, clipped=0.5)})
+    quality, _ = check_capture(glare, profile)
+    assert [p.code for p in quality.problems] == ["clipped"]
+    assert "flatter" in quality.problems[0].fix.lower()
+    flat = contact_cap(rng)
+    flat["rings"] = [list(flat["rings"][0]) for _ in flat["rings"]]
+    quality, _ = check_capture(Capture.model_validate({"contact": flat}), profile)
+    assert [p.code for p in quality.problems] == ["no_falloff"]
+    assert "isn't pressed against the food" in quality.problems[0].message
+    leaky, usable = check_capture(Capture.model_validate({"contact": contact_cap(rng, dark_bright=True)}), profile)
+    assert leaky.ok and usable == {"contact"}
+    assert [(p.code, p.severity) for p in leaky.problems] == [("light_leak", "warn")]
+
+
+def test_quality_bubble_gates():
+    profile = foods.get("honey")
+    rng = np.random.default_rng(25)
+    good, usable = check_capture(Capture.model_validate({"bubble": bubble_cap(rng)}), profile)
+    assert good.ok and usable == {"bubble"}
+    blind = bubble_cap(rng, tracked=0.1)
+    quality, usable = check_capture(Capture.model_validate({"bubble": blind}), profile)
+    assert not quality.ok and not usable and [p.code for p in quality.problems] == ["not_visible"]
+    assert "Sift couldn't see the bubble" in quality.problems[0].message
+    assert "fill the frame" in quality.problems[0].fix.lower() and "more slowly" in quality.problems[0].fix.lower()
+    stuck = bubble_cap(rng, rise=None)
+    quality, _ = check_capture(Capture.model_validate({"bubble": stuck}), profile)
+    assert [p.code for p in quality.problems] == ["no_rise"]
+    slow, usable = check_capture(Capture.model_validate({"bubble": bubble_cap(rng, fps=15.0)}), profile)
+    assert slow.ok and usable == {"bubble"}
+    assert [(p.code, p.severity) for p in slow.problems] == [("low_fps", "warn")]
+
+
+def _store_genuine_single(client, food, device, make, n=8, seed=0):
+    rng = np.random.default_rng(seed)
+    for _ in range(n):
+        r = post_scan(client, make(rng), food=food, device=device, mode="reference", reference={"label": "genuine"})
+        assert r.status_code == 200, r.json()
+        assert r.json()["status"] == "stored", r.json()
+
+
+def test_contact_only_matches_then_differs(client):
+    device = "contact-phone"
+    _store_genuine_single(client, "beef", device, lambda rng: {"contact": contact_cap(rng)}, seed=26)
+    fresh = post_scan(client, {"contact": contact_cap(np.random.default_rng(27))}, food="beef", device=device).json()
+    assert fresh["match"]["status"] == "matches", fresh["match"]
+    assert fresh["match"]["n_genuine"] == 8 and fresh["match"]["modalities"] == ["contact"]
+    shifted = {"contact": contact_cap(np.random.default_rng(28), red_shift=-0.15, green_shift=0.15)}
+    differs = post_scan(client, shifted, food="beef", device=device).json()
+    assert differs["match"]["status"] == "differs", differs["match"]
+
+
+def test_bubble_only_matches_then_differs(client):
+    device = "bubble-phone"
+    _store_genuine_single(client, "honey", device, lambda rng: {"bubble": bubble_cap(rng)}, seed=29)
+    fresh = post_scan(client, {"bubble": bubble_cap(np.random.default_rng(30))}, food="honey", device=device).json()
+    assert fresh["match"]["status"] == "matches", fresh["match"]
+    assert fresh["match"]["n_genuine"] == 8 and fresh["match"]["modalities"] == ["bubble"]
+    thin = {"bubble": bubble_cap(np.random.default_rng(31), rise=0.6)}
+    differs = post_scan(client, thin, food="honey", device=device).json()
+    assert differs["match"]["status"] == "differs", differs["match"]
+
+
+def test_new_modality_profiles_validate():
+    all_foods = foods.load_all()
+    honey = all_foods["honey"]
+    assert "bubble" in honey["scan"]["modalities"]
+    syrup = next(t for t in honey["targets"] if t["id"] == "syrup-dilution")
+    assert syrup["status"] == "experimental" and "bubble" in syrup["signals"]
+    assert "Stokes" in syrup["signals"]["bubble"]
+    assert any(r["url"] == "https://doi.org/10.1145/3498361.3539776" for r in syrup["references"])
+    for food_id in ("beef", "chicken", "fish-fillet"):
+        food = all_foods[food_id]
+        assert "contact" in food["scan"]["modalities"], food_id
+        freshness = next(t for t in food["targets"] if t["id"] == "freshness")
+        assert freshness["status"] == "experimental" and "contact" in freshness["signals"], food_id
+        assert any(r["url"] == "https://doi.org/10.1186/s12911-014-0100-z" for r in freshness["references"]), food_id
+    for food_id in ("honey", "beef", "chicken", "fish-fillet"):
+        placement = all_foods[food_id]["scan"]["placement"]
+        assert 0 < len(placement) <= 120, food_id
+    assert "bubble" in all_foods["honey"]["scan"]["placement"]
+    for food_id in ("beef", "chicken", "fish-fillet"):
+        assert "press" in all_foods[food_id]["scan"]["placement"].lower(), food_id
+    for food_id in ("honey", "olive-oil"):
+        limits = " ".join(all_foods[food_id].get("limits", [])).lower()
+        assert "sealed" in limits and "mostly full" in limits and "clear" in limits, food_id

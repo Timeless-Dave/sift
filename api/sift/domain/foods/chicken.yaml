@@ -7,8 +7,8 @@ aliases: [chicken, chicken breast, chicken meat, poultry]
 # Open Food Facts category tags that map a scanned barcode to this profile.
 off_category_tags: [en:chickens, en:poultries]
 scan:
-  modalities: [torch, vibration]
-  placement: Hold the phone over the chicken pack so the camera sees the meat through the film.
+  modalities: [torch, vibration, contact]
+  placement: Hold the phone over the chicken pack, then press the camera flat on the film over the meat.
 summary: >
   The torch reading captures the meat's surface colour and sheen through the pack film while the
   vibration reading senses firmness. The pattern is compared with genuine chicken scanned on the
@@ -21,6 +21,8 @@ targets:
     signals:
       torch: Fresh chicken is pale pink and turns dull grey-green with a slimy sheen as it spoils.
       vibration: Spoilage softens the flesh and wets the surface, changing how the pack damps vibration.
+      contact: Myoglobin and haemoglobin oxidation and deoxygenation change how tissue absorbs red and green light
+               scattered a few millimetres in, and spoilage changes scattering.
     likely_causes:
       - Meat going off
       - A different cut or rearing method than the references
@@ -36,6 +38,13 @@ targets:
         url: https://simpeg.polinema.ac.id/upload_dir/filePenelitian/132310111/10-10_1109iciev_2018_8640992.pdf
         finding: The smartphone-camera set (150 images, uncontrolled light) reached only 58.33% 3-class accuracy, far
                  below the 98% webcam set with fixed light.
+      - title: An innovative approach to near-infrared spectroscopy using a standard mobile device and its clinical
+               application in the real-time visualization of peripheral veins
+        source: BMC Medical Informatics and Decision Making, 2014
+        url: https://doi.org/10.1186/s12911-014-0100-z
+        finding: A phone-driven prototype (external NIR-modified camera, 740 nm LEDs) located veins 35.2% more
+                 successfully than nursing students over 500 attempts; shows light scattered through tissue carries
+                 absorption contrast, though Sift uses the visible band.
   - id: cultured-vs-conventional
     kind: cultured
     question: Is this cultivated (lab-grown) chicken rather than conventional chicken?

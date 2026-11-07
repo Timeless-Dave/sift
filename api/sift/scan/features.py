@@ -10,7 +10,15 @@ from __future__ import annotations
 import numpy as np
 
 from ..vision import screenlight
-from .schemas import AcousticCapture, Capture, ScreenlightCapture, TorchCapture, VibrationCapture
+from .schemas import (
+    AcousticCapture,
+    BubbleCapture,
+    Capture,
+    ContactCapture,
+    ScreenlightCapture,
+    TorchCapture,
+    VibrationCapture,
+)
 
 # The screen colours every food uses, in flash order. Same sequence as the olive-oil
 # screen-light assay, so screen-light vectors stay comparable across foods.
@@ -18,6 +26,8 @@ SCREEN_SEQUENCE = ["white", "black", "red", "orange", "yellow", "lime", "green",
                    "magenta"]
 TORCH_DIM = 14
 RATIO_CAP = 100.0
+CONTACT_FLOOR = 1e-3
+CONTACT_CHROMA_FLOOR = 1e-6
 
 
 def torch_vector(t: TorchCapture) -> list[float] | None:
@@ -56,9 +66,32 @@ def vibration_vector(v: VibrationCapture) -> list[float]:
     return vec
 
 
+def contact_vector(c: ContactCapture) -> list[float] | None:
+    """Per-ring log colour ratios against ring 0, plus ring 0 torch-minus-dark chromaticity (r, g)."""
+    if not c.torch_available:
+        return None
+    rings = np.array(c.rings, float).clip(min=CONTACT_FLOOR)
+    first = rings[0].clip(min=CONTACT_FLOOR)
+    ratios = np.log(rings[1:] / first).tolist()
+    diff = (np.array(c.rings[0], float) - np.array(c.dark, float)).clip(min=0)
+    total = float(diff.sum())
+    chroma = (diff[:2] / total).tolist() if total > CONTACT_CHROMA_FLOOR else [1 / 3, 1 / 3]
+    return [float(v) for row in ratios for v in row] + [float(chroma[0]), float(chroma[1])]
+
+
+def bubble_vector(b: BubbleCapture) -> list[float] | None:
+    """Rise time, mean upward speed over the tracked segment, and tracked share. No rise, no vector."""
+    if b.rise_time_s is None:
+        return None
+    duration = (len(b.track) - 1) / max(float(b.fps), 1e-9)
+    speed = float((b.track[-1] - b.track[0]) / duration) if duration > 0 else 0.0
+    return [float(b.rise_time_s), speed, float(b.tracked_fraction)]
+
+
 def extract_features(capture: Capture, modalities: set[str] | None = None) -> dict[str, list[float]]:
     """Feature vectors for the usable modalities. Missing modalities produce no vector."""
-    want = modalities if modalities is not None else {"torch", "screenlight", "acoustic", "vibration"}
+    want = modalities if modalities is not None else {"torch", "screenlight", "acoustic", "vibration", "contact",
+                                                      "bubble"}
     vecs: dict[str, list[float]] = {}
     if "torch" in want and capture.torch is not None and (v := torch_vector(capture.torch)) is not None:
         vecs["torch"] = v
@@ -69,4 +102,8 @@ def extract_features(capture: Capture, modalities: set[str] | None = None) -> di
         vecs["acoustic"] = acoustic_vector(capture.acoustic)
     if "vibration" in want and capture.vibration is not None:
         vecs["vibration"] = vibration_vector(capture.vibration)
+    if "contact" in want and capture.contact is not None and (v := contact_vector(capture.contact)) is not None:
+        vecs["contact"] = v
+    if "bubble" in want and capture.bubble is not None and (v := bubble_vector(capture.bubble)) is not None:
+        vecs["bubble"] = v
     return vecs
