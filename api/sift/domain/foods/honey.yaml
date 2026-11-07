@@ -7,8 +7,8 @@ aliases: [honey, pure honey, raw honey]
 # Open Food Facts category tags that map a scanned barcode to this profile.
 off_category_tags: [en:honeys]
 scan:
-  modalities: [screenlight, torch, acoustic]
-  placement: Press the phone flat against the side of the honey jar.
+  modalities: [screenlight, torch, acoustic, bubble]
+  placement: Press the phone to the honey jar, then turn the sealed jar over to film the bubble rise.
 summary: >
   The screen flashes colours through the jar while the front camera records what comes back, the
   torch reading adds colour and clarity, and the sound sweep senses thickness. The pattern is
@@ -22,6 +22,7 @@ targets:
       screenlight: Syrup dilution thins honey's natural colour, shifting reflectance under each screen colour.
       torch: Diluted honey looks paler and clearer under white light.
       acoustic: Syrup is thinner than honey, so dilution changes how sound damps through the jar.
+      bubble: Syrup dilution changes viscosity and density, so the bubble rises at a different speed (Stokes' law).
     likely_causes:
       - Sugar syrup mixed in
       - A different floral source than the references
@@ -39,6 +40,11 @@ targets:
         url: https://doi.org/10.3390/app16178452
         finding: Smartphone RGB histograms estimated 0-50% syrup in one lab-made series (PLSR R2 0.98, RMSE 2.22pp) but
                  needs independent samples, more honey-syrup pairs and more devices.
+      - title: Detecting Counterfeit Liquid Food Products in a Sealed Bottle Using a Smartphone Camera
+        source: MobiSys 2022 (ACM)
+        url: https://doi.org/10.1145/3498361.3539776
+        finding: Bubble-rise video through sealed bottles identified adulterated honey with 95.0% accuracy (olive oil
+                 93.9%, vodka 86.0%); honey worked at 30 fps, thinner liquids needed 120-240 fps.
 references:
   - title: "Artificial intelligence for honey integrity in Ghana: a feasibility study on the use of smartphone images
            coupled with multivariate algorithms"
@@ -55,3 +61,4 @@ references:
 limits:
   - Cannot name the syrup type or percentage; that needs lab tests (NMR, isotope analysis).
   - Needs genuine reference scans from the same phone model before it gives a match result.
+  - Bubble rise needs a sealed, mostly full, clear container to see the bubble.

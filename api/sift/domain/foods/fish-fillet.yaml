@@ -7,8 +7,8 @@ aliases: [fish fillet, fresh fish, fish, salmon fillet]
 # Open Food Facts category tags that map a scanned barcode to this profile.
 off_category_tags: [en:fishes]
 scan:
-  modalities: [torch, vibration]
-  placement: Hold the phone over the fillet pack so the camera sees the flesh, not the label.
+  modalities: [torch, vibration, contact]
+  placement: Hold the phone over the fillet pack, then press the camera flat on the film over the flesh.
 summary: >
   The torch reading captures the flesh colour, marbling and sheen through the pack film while the
   vibration reading senses firmness. The pattern is compared with genuine fillets of the same
@@ -38,6 +38,8 @@ targets:
     signals:
       torch: Fresh fillet flesh is bright and glossy and dulls toward grey with age and poor storage.
       vibration: Fresh flesh is firm and springs back while stale flesh stays soft, damping vibration differently.
+      contact: Myoglobin and haemoglobin oxidation and deoxygenation change how tissue absorbs red and green light
+               scattered a few millimetres in, and spoilage changes scattering.
     likely_causes:
       - Fish going stale
       - Previously frozen fish sold as fresh
@@ -49,6 +51,13 @@ targets:
         url: https://pmc.ncbi.nlm.nih.gov/articles/PMC12567205/
         finding: The same two-stage model graded salmon freshness into 3 levels at 73.75%, and stayed robust to blur and
                  small tilts but not to varied lighting or packaging.
+      - title: An innovative approach to near-infrared spectroscopy using a standard mobile device and its clinical
+               application in the real-time visualization of peripheral veins
+        source: BMC Medical Informatics and Decision Making, 2014
+        url: https://doi.org/10.1186/s12911-014-0100-z
+        finding: A phone-driven prototype (external NIR-modified camera, 740 nm LEDs) located veins 35.2% more
+                 successfully than nursing students over 500 attempts; shows light scattered through tissue carries
+                 absorption contrast, though Sift uses the visible band.
 references:
   - title: A Deep Learning-Based Sensing System for Identifying Salmon and Rainbow Trout Meat and Grading Freshness for
            Consumer Protection
