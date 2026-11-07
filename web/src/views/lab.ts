@@ -36,7 +36,8 @@ export async function labView(root: HTMLElement, assayId?: string) {
       <p class="train-out" role="status"></p>
 
       <h2>Accuracy so far</h2>
-      <p>${esc(assay.accuracy?.summary)}</p>
+      <p>All phones: ${esc(assay.accuracy?.summary)}</p>
+      <p>This phone: ${esc(assay.accuracy?.by_device?.[device]?.summary ?? "Not measured yet: no runs with known answers.")}</p>
 
       <h2>Recent runs</h2>
       ${runs.length ? `<table class="data runs"><thead><tr><th>When</th><th>Phone</th><th>Result</th><th>Known</th></tr></thead><tbody>

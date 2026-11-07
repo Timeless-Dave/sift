@@ -132,3 +132,16 @@ def test_rate_limit(make_client):
     codes = [c.get("/v1/runs").status_code for _ in range(4)]
     assert codes[:3] == [200, 200, 200] and codes[3] == 429
     assert int(c.get("/v1/runs").headers["Retry-After"]) >= 1
+
+
+def test_agent_offline_matches_whole_words(client):
+    def step_after(message, step="boil"):
+        return client.post("/v1/agent/turn", json={"assay_id": "milk-starch-iodine", "step_id": step,
+                                                   "message": message}).json()["step_id"]
+    assert step_after("Done!") == "mix"
+    assert step_after("okay") == "mix"
+    assert step_after("I'm not done yet") == "boil"
+    assert step_after("how long should I look at it?") == "boil"
+    assert step_after("is the photograph next?") == "boil"
+    assert step_after("go back", "mix") == "boil"
+    assert step_after("retake", "mix") == "photo"

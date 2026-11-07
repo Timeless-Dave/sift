@@ -60,8 +60,11 @@ The SAM 3.1 request path is configurable (`SIFT_SAM_PATH`); check it against the
 
 ## Accuracy
 
-Sift reports accuracy only from validation runs with known answers, per test and per phone.
-No accuracy figure in this repo is borrowed from the papers it cites. The unit tests run on
+Sift reports accuracy only from validation runs with known answers, per test and per phone
+(`accuracy.by_device`). No accuracy figure in this repo is borrowed from the papers it cites.
+
+A run can be a calibration sample or a validation run, never both, so a model is never scored
+on the samples it was trained on. The unit tests run on
 synthetic card images and check the arithmetic, not real-world accuracy.
 
 ## Architecture
@@ -102,6 +105,8 @@ a minute after repeated failures, so an outage degrades to offline guidance inst
 - Screen-light frames are checked for colour names, frame counts and value ranges.
 - Ids and device labels are pattern-checked.
 - API keys are stored as SHA-256 hashes and can be revoked. Runs made with a key are visible only to that key.
+- Calibration samples, trained models and accuracy figures belong to the key that made them. A key's model
+  never reads public runs, and public calibration never reaches a key's runs.
 - The enterprise tier requires a key.
 - Admin calls use a constant-time token check.
 - Rate limits apply per IP or key, with a stricter limit on agent and voice calls.
