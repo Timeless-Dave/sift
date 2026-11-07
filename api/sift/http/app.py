@@ -43,8 +43,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app = FastAPI(title="Sift Lab API", version=__version__,
                   description="Run food-fraud screening assays from a phone camera or the Sift device. "
                               "Results are screening results; each names the lab method that would confirm it.",
-                  docs_url=None if settings.production else "/docs", redoc_url=None,
-                  openapi_url=None if settings.production else "/openapi.json")
+                  # /docs is the Developers tier's API reference, so it stays on in production.
+                  # Admin routes are excluded from the schema.
+                  docs_url="/docs", redoc_url=None)
     app.state.container = Container.build(settings)
 
     app.add_middleware(CORSMiddleware, allow_origins=list(settings.cors_origins),
@@ -103,7 +104,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.get("/health", tags=["meta"])
     def health(request: Request) -> dict:
         c: Container = app.state.container
-        c.limiter.hit("api", client_ip(request, c), c.settings.limits.rate_public)
+        c.limiter.hit("catalog", client_ip(request, c), c.settings.limits.rate_catalog)
         return {"ok": True, "version": __version__, "agent": "muse-spark" if c.client.online else "offline",
                 "chat_model": settings.chat_model}
 

@@ -1,7 +1,15 @@
-# HTTPS front end for phones (compose profile "https"). Self-signed local CA: phones
-# reach https://<host-lan-ip>:8443 and trust the Caddy root cert (see README).
-:8443 {
+# HTTPS front end for phones (compose profile "https"). Caddy's local CA signs a cert for
+# localhost and SIFT_HOST (the host's LAN IP or name); see README for trusting it on a phone.
+{
+	# A phone that connects by IP address sends no SNI; give it the SIFT_HOST cert.
+	default_sni {$SIFT_HOST}
+	# Port 80 isn't published, so skip the HTTP->HTTPS redirect listener.
+	auto_https disable_redirects
+}
+
+localhost:8443, {$SIFT_HOST}:8443 {
 	tls internal
-	reverse_proxy web:8080
-	header Strict-Transport-Security "max-age=31536000; includeSubDomains"
+	# 8081 is nginx's internal listener, the only one that trusts X-Forwarded-For.
+	reverse_proxy web:8081
+	# No HSTS: it ignores ports, so it would also force https on http://localhost:8080.
 }

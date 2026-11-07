@@ -179,26 +179,23 @@ def test_client_ip_takes_last_entry_from_trusted_proxy():
     assert ip("1.2.3.4", "172.18.0.3", trust=False) == "172.18.0.3"
 
 
-def test_docs_disabled_in_production(make_client):
-    prod = make_client(SIFT_ENV="production", SIFT_CORS="http://localhost:8080")
-    assert prod.get("/docs").status_code == 404
-    assert prod.get("/openapi.json").status_code == 404
-
-
-def test_docs_enabled_in_development(client):
-    assert client.get("/docs").status_code == 200
-    assert client.get("/openapi.json").status_code == 200
-
 
 def test_catalog_health_card_rate_limited(make_client):
     for path in ["/v1/assays", "/v1/assays/milk-starch-iodine", "/health", "/v1/card.svg"]:
-        c = make_client(SIFT_RATE_PUBLIC=3)
+        c = make_client(SIFT_RATE_CATALOG=3)
         codes = [c.get(path).status_code for _ in range(4)]
         assert codes == [200, 200, 200, 429], path
 
 
+def test_catalog_browsing_does_not_use_up_the_run_budget(make_client):
+    c = make_client(SIFT_RATE_PUBLIC=2)
+    for _ in range(10):
+        assert c.get("/v1/assays").status_code == 200
+    assert c.get("/v1/runs").status_code == 200
+
+
 def test_catalog_keyed_uses_keyed_limit(make_client):
-    c = make_client(SIFT_RATE_PUBLIC=1, SIFT_RATE_KEYED=5, SIFT_ADMIN_TOKEN="k" * 30)
+    c = make_client(SIFT_RATE_CATALOG=1, SIFT_RATE_KEYED=5, SIFT_ADMIN_TOKEN="k" * 30)
     key = c.post("/v1/keys", json={"owner": "lab"}, headers={"X-Admin-Token": "k" * 30}).json()["key"]
     h = {"X-Sift-Key": key}
     assert c.get("/v1/assays").status_code == 200

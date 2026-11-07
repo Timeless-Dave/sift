@@ -120,11 +120,11 @@ def viewer(request: Request, x_sift_key: str | None = Header(default=None),
     Unlike `identity`, it never demands a key, but it counts against the rate limit."""
     ip = client_ip(request, c)
     if not x_sift_key:
-        c.limiter.hit("api", ip, c.settings.limits.rate_public)
+        c.limiter.hit("catalog", ip, c.settings.limits.rate_catalog)
         return None
     if not c.store.use_key(hash_key(x_sift_key)):
         raise Unauthorized("Unknown or revoked API key.")
-    c.limiter.hit("api", x_sift_key[:12], c.settings.limits.rate_keyed)
+    c.limiter.hit("catalog", x_sift_key[:12], max(c.settings.limits.rate_keyed, c.settings.limits.rate_catalog))
     return x_sift_key[:12]
 
 

@@ -37,10 +37,11 @@ services:
         condition: service_healthy
     restart: unless-stopped
     read_only: true
+    # nginx runs as a non-root user, so its scratch dirs must be writable by it.
     tmpfs:
-      - /var/cache/nginx
-      - /var/run
-      - /tmp
+      - /var/cache/nginx:mode=1777
+      - /var/run:mode=1777
+      - /tmp:mode=1777
     security_opt: ["no-new-privileges:true"]
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/"]
@@ -52,10 +53,13 @@ services:
   # Optional HTTPS front end for phones: `docker compose --profile https up`.
   # Plain `docker compose up` is unchanged (HTTP on :8080 for localhost).
   caddy:
-    image: caddy:2-alpine
+    image: caddy:2-alpine@sha256:78bd35025c7ba85961dd149ae670315129954e77abe2383ac47c89106b35ade9
     profiles: ["https"]
     ports:
       - "8443:8443"
+    environment:
+      # The address phones use: the host's LAN IP or DNS name.
+      SIFT_HOST: ${SIFT_HOST:-127.0.0.1}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy-data:/data

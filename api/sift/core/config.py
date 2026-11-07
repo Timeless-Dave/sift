@@ -36,6 +36,9 @@ class Limits:
     rate_public: int = field(default_factory=lambda: _int("SIFT_RATE_PUBLIC", 30))
     rate_keyed: int = field(default_factory=lambda: _int("SIFT_RATE_KEYED", 240))
     rate_agent: int = field(default_factory=lambda: _int("SIFT_RATE_AGENT", 20))
+    # Cheap read-only catalog calls (assays, health, card). Every page view makes several, and
+    # behind NAT or Docker port forwarding many people can share one address.
+    rate_catalog: int = field(default_factory=lambda: _int("SIFT_RATE_CATALOG", 240))
 
 
 @dataclass(frozen=True)

@@ -32,7 +32,7 @@ def get_assay(assay_id: str = Path(min_length=1, max_length=64, pattern=r"^[a-z0
 
 @router.get("/v1/card.svg", summary="Printable reference card (print at 100%)")
 def reference_card(request: Request, c: Container = Depends(container)) -> Response:
-    c.limiter.hit("api", client_ip(request, c), c.settings.limits.rate_public)
+    c.limiter.hit("catalog", client_ip(request, c), c.settings.limits.rate_catalog)
     return Response(card.card_svg(), media_type="image/svg+xml",
                     headers={"Content-Disposition": 'inline; filename="sift-reference-card.svg"',
                              "Cache-Control": "public, max-age=86400"})

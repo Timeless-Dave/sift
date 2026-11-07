@@ -149,8 +149,9 @@ docker compose up --build        # app on http://localhost:8080
 Phone cameras need HTTPS outside `localhost`. For a phone on the same LAN, run the HTTPS profile:
 
 ```bash
-# Find the host LAN IP first (macOS: ipconfig getifaddr en0; Linux: hostname -I | cut -d' ' -f1)
-SIFT_CORS=http://localhost:8080,https://<host-lan-ip>:8443 docker compose --profile https up --build
+# SIFT_HOST is the address the phone will use: the host's LAN IP
+# (macOS: ipconfig getifaddr en0; Linux: hostname -I | cut -d' ' -f1) or a local DNS name.
+SIFT_HOST=<host-lan-ip> docker compose --profile https up --build -d
 # App on https://<host-lan-ip>:8443 (:8080 still serves plain HTTP for localhost)
 ```
 
@@ -168,10 +169,13 @@ Send `caddy-root.crt` to the phone, then:
 - Android: Settings > Security > Encryption & credentials > Install a certificate > CA certificate,
   then select the file (exact steps vary by vendor).
 
-Topology is browser -> (caddy) -> nginx (web) -> api. `SIFT_TRUST_PROXY=1` (set in compose) means the
-API trusts `X-Forwarded-For` only from its Docker-network proxy and rate-limits off the last entry (the
-address nginx saw); leading entries and any `X-Forwarded-For` from a direct client are ignored. Leave
-it `0` when running uvicorn directly, and never set it `1` when the API is reachable from the internet.
+How the client IP reaches the rate limiter: browsers on `:8080` talk to nginx directly, and nginx
+ignores any `X-Forwarded-For` they send. Caddy (`:8443`) connects to nginx's internal listener on 8081,
+which is not published and is the only one that takes the client address from `X-Forwarded-For`. nginx
+then passes the API a single address. The API (`SIFT_TRUST_PROXY=1`, set in compose) reads it only
+when the request comes from the Docker network. Leave it `0` when running uvicorn directly. With Docker
+Desktop or Colima on a Mac, port forwarding makes every `:8080` client appear as one address, so they
+share one rate limit; on Linux, and through Caddy, each client is counted separately.
 
 Print `docs/sift-reference-card.svg` at 100% on plain white paper.
 
