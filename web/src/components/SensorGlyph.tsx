@@ -52,8 +52,10 @@ export function SensorGlyph({ kind, size = 72 }: { kind: string; size?: number }
       return (
         <svg {...common}>
           <path d="M4 36 C 8 18, 12 18, 16 36 S 22 54, 26 36 S 30 22, 33 36 S 36 48, 38.5 36 S 41 26, 43 36 S 45 44, 46.5 36 S 48 30, 49.5 36 S 51 41, 52 36 S 53 33, 54 36 S 55 38.5, 56 36 S 57 34.5, 58 36 S 59 37, 60 36 S 61 35.4, 62 36 S 63 36.5, 64 36 L68 36" />
-          <text x="4" y="64" fontFamily="IBM Plex Mono, monospace" fontSize="7" fill="currentColor" stroke="none">200 Hz</text>
-          <text x="46" y="64" fontFamily="IBM Plex Mono, monospace" fontSize="7" fill="currentColor" stroke="none">20 kHz</text>
+          {size >= 56 && <>
+            <text x="4" y="64" fontFamily="IBM Plex Mono, monospace" fontSize="7" fill="currentColor" stroke="none">200 Hz</text>
+            <text x="46" y="64" fontFamily="IBM Plex Mono, monospace" fontSize="7" fill="currentColor" stroke="none">20 kHz</text>
+          </>}
         </svg>
       );
     case "vibration":     // motor buzz damped by what it rests on
