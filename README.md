@@ -56,7 +56,8 @@ Sift will not:
 Without `MODEL_API_KEY` the app still works: guidance follows the written protocol and reports
 come from a template. Every response says which one produced it.
 
-The SAM 3.1 request path is configurable (`SIFT_SAM_PATH`); check it against the Model API docs.
+SAM 3.1 segments over the Responses API (`POST /responses`; see the [SAM overview](https://dev.meta.ai/docs/sam/overview)).
+The path stays configurable (`SIFT_SAM_PATH`) in case the API moves.
 
 ## Accuracy
 

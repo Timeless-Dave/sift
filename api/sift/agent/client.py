@@ -1,8 +1,9 @@
 """Thin client for Meta Model API (OpenAI-compatible, https://api.meta.ai/v1).
 
 Chat and vision go through /chat/completions with OpenAI-style messages and tools.
-Transcription goes through /asr/transcribe. SAM 3.1's endpoint and request shape should be checked
-against dev.meta.ai/docs/models; the path is configurable and every caller has a fallback.
+Transcription goes through /asr/transcribe. SAM 3.1 segments through /responses with an
+input_text prompt plus an input_image part; geometry comes back as special-token text in
+the output_text lane (see sift.agent.sam).
 
 Without MODEL_API_KEY the client reports itself offline and callers use their deterministic
 paths. Offline output is labelled as such in every response; nothing pretends to be a model.
@@ -20,6 +21,7 @@ import httpx
 import numpy as np
 
 from ..core.config import Settings
+from . import sam
 
 log = logging.getLogger("sift.meta")
 
@@ -143,25 +145,72 @@ class MetaClient:
             text = " ".join(str(seg.get("text", "")) for seg in data["segments"] if isinstance(seg, dict))
         return str(text).strip()
 
-    def segment(self, image_jpeg: bytes, prompt: str, shape: tuple[int, int]) -> np.ndarray:
-        """Ask SAM 3.1 for a mask of `prompt`. Returns a boolean mask of `shape` (h, w)."""
-        body = {"model": self.s.sam_model, "image": _data_url(image_jpeg), "prompt": prompt}
-        data = self._post(self.s.sam_path, json=body).json()
-        masks = data.get("masks") or data.get("data") or []
-        if not masks:
-            raise MetaUnavailable("SAM returned no mask")
-        first = masks[0]
-        encoded = first.get("mask") or first.get("png") or first.get("b64_json")
-        if not encoded:
-            raise MetaUnavailable("Unrecognised SAM mask format")
-        import cv2  # local import keeps the client light for non-vision callers
+    def segment(self, image_jpeg: bytes, prompt: str, shape: tuple[int, int]) -> list[np.ndarray]:
+        """Ask SAM 3.1 for every match of `prompt`. Returns one boolean mask of `shape` (h, w) per match.
 
-        raw = base64.b64decode(encoded.split(",")[-1])
-        mask = cv2.imdecode(np.frombuffer(raw, np.uint8), cv2.IMREAD_GRAYSCALE)
-        if mask is None:
-            raise MetaUnavailable("Could not decode SAM mask")
-        mask = cv2.resize(mask, (shape[1], shape[0]), interpolation=cv2.INTER_NEAREST)
-        return mask > 127
+        SAM wants a short noun phrase ("circle"), not a sentence; longer prompts often match nothing.
+        Each mask raster covers only its box, so it is placed at the box inside a full-frame mask.
+        Any failure, including zero matches, raises MetaUnavailable so callers fall back to
+        card-window segmentation.
+        """
+        body = {"model": self.s.sam_model,
+                "input": [{"type": "message", "role": "user", "content": [
+                    {"type": "input_text", "text": prompt},
+                    {"type": "input_image", "image_url": _data_url(image_jpeg)}]}],
+                "metadata": {"mask_encoding": "one_bit"},
+                "stream": False}
+        try:
+            data = self._post(self.s.sam_path, json=body).json()
+        except ValueError as exc:
+            raise MetaUnavailable("SAM response was not JSON") from exc
+        try:
+            records = sam.parse_output_text(_responses_text(data))
+            return [_place(rec, sam.decode_mask(rec.mask), shape) for rec in records]
+        except ValueError as exc:
+            raise MetaUnavailable(f"Unexpected SAM response shape: {exc}") from exc
+
+
+def _place(rec: sam.SamRecord, raster: bytes, shape: tuple[int, int]) -> np.ndarray:
+    """Put a box-sized mask raster into a frame-sized mask, then scale it to `shape` (h, w)."""
+    import cv2  # local import keeps the client light for non-vision callers
+
+    x1, y1, x2, y2, fw, fh = rec.box
+    local = np.frombuffer(raster, dtype=np.uint8).reshape(rec.mask.height, rec.mask.width)
+    bw, bh = x2 - x1 + 1, y2 - y1 + 1
+    if local.shape != (bh, bw):
+        local = cv2.resize(local, (bw, bh), interpolation=cv2.INTER_NEAREST)
+    frame = np.zeros((fh, fw), np.uint8)
+    frame[y1:y2 + 1, x1:x2 + 1] = local
+    if (fh, fw) != tuple(shape):
+        frame = cv2.resize(frame, (shape[1], shape[0]), interpolation=cv2.INTER_NEAREST)
+    return frame > 0
+
+
+def _responses_text(data: object) -> str:
+    """Pull the output_text lane out of a non-streaming Responses API reply."""
+    if not isinstance(data, dict):
+        raise MetaUnavailable("Unexpected SAM response shape")
+    status = data.get("status")
+    if status is not None and status != "completed":
+        raise MetaUnavailable(f"SAM response was {status}")
+    output = data.get("output")
+    if not isinstance(output, list):
+        raise MetaUnavailable("Unexpected SAM response shape")
+    saw_text = False
+    for item in output:
+        content = item.get("content") if isinstance(item, dict) else None
+        if not isinstance(content, list):
+            continue
+        for part in content:
+            if not isinstance(part, dict) or part.get("type") != "output_text":
+                continue
+            saw_text = True
+            text = part.get("text")
+            if isinstance(text, str) and text.strip():
+                return text
+    if saw_text:
+        raise MetaUnavailable("SAM found no match")  # zero matches: a valid empty lane
+    raise MetaUnavailable("Unexpected SAM response shape")
 
 
 def _data_url(jpeg: bytes) -> str:
