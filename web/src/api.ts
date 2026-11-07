@@ -1,3 +1,5 @@
+import type { ScanRequest, ScanResult } from "./sensors/types";
+
 export const API = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, "") || "/api";
 
 export type Verdict = "pass" | "caution" | "flag" | "unknown";
@@ -80,4 +82,35 @@ export const api = {
     const fd = new FormData(); fd.append("audio", audio, "voice.wav");
     return req<{ text: string; agent: string }>("/v1/transcribe", { method: "POST", body: fd });
   },
+};
+
+// ---- instant scanner (docs/scanner.md) -------------------------------------------------------
+export type { ScanRequest, ScanResult } from "./sensors/types";
+
+export type TargetStatus = "research" | "experimental" | "validated";
+export interface FoodTarget {
+  id: string; kind: "adulteration" | "cultured" | "freshness" | "identity"; question: string; status: TargetStatus;
+  signals?: Record<string, string>; likely_causes?: string[]; references?: Reference[];
+}
+export interface Food {
+  id: string; name: string; category: string; aliases: string[]; summary?: string;
+  scan: { modalities: string[]; placement: string };
+  targets: FoodTarget[]; references?: Reference[]; limits?: string[];
+  references_count?: Record<string, number>;
+}
+export interface Identification { food: string | null; confidence: number; seen: string; candidates: string[]; agent: string }
+export interface ProductInfo { barcode: string; name: string | null; brands: string | null; food: string | null; source: string }
+
+export const scanApi = {
+  foods: () => req<Food[]>("/v1/foods"),
+  food: (id: string) => req<Food>(`/v1/foods/${encodeURIComponent(id)}`),
+  scan: (body: ScanRequest) => req<ScanResult>("/v1/scans", json(body)),
+  /** GET /v1/scans/{id} returns the stored row; the scan result sits under `result`. */
+  result: (id: string) => req<{ id: string; food: string; device: string; created: number; result: ScanResult }>(
+    `/v1/scans/${encodeURIComponent(id)}`).then((row) => ({ ...row.result, scan_id: row.id, food: row.food })),
+  identify: (jpeg: Blob) => {
+    const fd = new FormData(); fd.append("image", jpeg, "frame.jpg");
+    return req<Identification>("/v1/identify", { method: "POST", body: fd });
+  },
+  product: (barcode: string) => req<ProductInfo>(`/v1/products/${encodeURIComponent(barcode)}`),
 };

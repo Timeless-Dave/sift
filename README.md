@@ -1,66 +1,76 @@
-# Sift Lab
+# Sift
 
-A food-testing lab on your phone. Sift runs individually validated screening tests for
-common food fraud, each based on published research, through one app and one API.
+Point your phone at food in a shop and check it in about 10 seconds, with nothing but the phone.
+Sift uses light, sound and motion to fingerprint a food. It compares that fingerprint with
+reference scans of genuine and adulterated samples, and says only what the evidence supports.
 
 Built for the Meta Global AI Developer Hackathon 2026 (Indie track, theme: Push the Frontier).
-Everything in this repository was written during the hackathon, Oct 26 to Nov 4, 2026.
 
-## What it does
+## How a scan works
 
-| Test | Method | What you need |
-| --- | --- | --- |
-| Starch in milk | Iodine colour reaction, read against the reference card | Tincture of iodine, printed card |
-| Lead in turmeric | Rhodizonate lead swab, read against the reference card | Consumer lead swab, printed card |
-| Olive oil purity | Screen-light scan: the screen flashes colours, the front camera records the reflections | A box or hood that blocks room light |
+1. **What is it?** Point the camera at the barcode (looked up on Open Food Facts) or the food
+   (identified by Muse vision), or pick it from a list.
+2. **Measure, phone only.** Depending on the food, Sift runs some of these. Every one uses only the
+   phone's own hardware:
 
-Planned tests (honey origin by pollen, pork in minced beef, urea in milk, milk acidity) are in the
-registry with their source papers and are not runnable yet.
+   | Sensor | What it measures |
+   | --- | --- |
+   | Light sweep | The screen flashes 12 colours at the food; the front camera reads what comes back (a coarse visible spectrum) |
+   | Torch | Colour and clarity with the flash off, then on |
+   | Light through tissue | Camera and torch pressed on meat or fish: torch light that scatters a few millimetres in and back out, ring by ring (the vein-finder principle, in visible light) |
+   | Bubble rise | Jar turned upside down, then upright: how fast the bubble climbs, which depends on viscosity and density |
+   | Sound sweep | 200 Hz to 20 kHz through the package, into near-ultrasound most people can't hear |
+   | Vibration | How the food damps the phone's vibration motor |
 
-Sift will not:
+   Screen-side and camera-side sensors face opposite ways, so the app asks you to turn the phone
+   over between them. Raw audio and video never leave the phone; only the measurements do.
+3. **Compare.** The fingerprint is compared with genuine reference scans of that food from the same
+   phone model. The answer is one of three:
+   - **Matches genuine**
+   - **Doesn't match genuine**: a reason to look closer, with the likely causes, never proof of fraud
+   - **No verdict yet**: Sift doesn't have enough references, and says how many it needs
+4. **Questions per food.** Each food lists what Sift is working on (seed oil in olive oil, syrup in
+   honey, pork in beef, freshness, lab-grown vs conventional meat), with an honest status and
+   sources. A question gets its own verdict only from a model with cross-validated accuracy of at
+   least 80% on at least 20 labelled scans.
 
-- tell lab-grown meat from conventional meat (no published phone method does this reliably),
-- give a verdict for a food no assay covers,
-- return a result from a capture that fails its quality checks.
+## What Sift checks
 
-## Three tiers, one API
+Milk, beef, chicken, fish, turmeric, chilli powder, honey, olive oil and sunflower oil. See the
+app's "What it checks" page, `api/sift/domain/foods/` and `docs/foods-evidence.md`. Lab-grown vs
+conventional meat is a **research** target: no validated method exists, on a phone or in a lab
+(UK FSA review, 2026). Sift collects labelled scans and gives no verdicts.
 
-- **Shopper**: guided steps, a plain-language result and how sure Sift is.
-- **Researcher**: practice runs in the app (walk the protocol, nothing is sent or saved), raw features,
-  per-phone calibration, validation runs that measure accuracy, CSV and JSON export. Operators can set
-  SIFT_PROTECT_CALIBRATION=1 so calibration writes and validation truth need an API key.
-- **Developers and organisations**: the same REST API with API keys. See `/docs` on a running server.
+Physics sets the limits. Phone cameras don't see infrared or UV, light reads only the surface and
+the first few millimetres, and tinted or opaque packaging blocks it. Every food profile says how to
+hold the phone, and the quality checks reject scans that can't see the food.
+`docs/research.md` reviews the published evidence: what phone-only methods have shown, and why
+lab spectroscopy results don't transfer to phones.
 
-## How a result is produced
+## The reference library
 
-1. **Capture.** Colour tests photograph the printed reference card (four ArUco corner markers,
-   eight colour swatches, a sample ring). Screen-light tests record the mean camera colour
-   under each screen colour.
-2. **Quality checks, in code.** Blur, exposure, glare, ambient light, movement and card colour fit.
-   A failed check returns the fix instead of a result.
-3. **Measurement, in code.** Perspective correction from the markers, a colour correction fitted
-   to the swatches, sample segmentation, then CIELAB features. Screen-light vectors go through
-   a partial least squares model.
-4. **Result.** A trained calibration curve or PLS model gives a value. Without one, colour tests
-   fall back to the assay's qualitative rule (present or absent), and screen-light tests ask for
-   calibration.
-5. **Agent.** The Lab Agent explains the result in plain words. It never changes the numbers.
+Sift's verdicts come from reference scans, not from borrowed accuracy figures. In Researcher mode,
+any scan of a sample whose answer you know (genuine, adulterated, cultivated, conventional) can be
+added to the library for that food and phone model. API keys get their own private library. Set
+`SIFT_PROTECT_CALIBRATION=1` to require a key for reference scans.
+
+## Lab tests
+
+When a scan doesn't match, reagent tests can confirm it at home: iodine for starch in milk, a
+rhodizonate swab for lead in turmeric, each read against the printed reference card. They live
+under "Lab tests" in the app, with per-phone calibration and validation runs.
 
 ## Meta models
 
 | Model | Job |
 | --- | --- |
-| Muse Spark (`muse-spark-1.3`) | Lab Agent: guides each protocol step with tool calls (`go_to_step`, `open_camera`, `start_timer`), reviews the rectified card image on passing captures (`capture_review`), writes the report |
-| Muse Voice Transcribe | Hands-free control while your hands are wet or gloved |
-| SAM 3.1 | Segments the sample inside the ring; falls back to Sift's own segmentation if unavailable |
+| Muse Spark (`muse-spark-1.3`) | Identifies the food from a camera frame, writes scan reports (guardrailed), and guides the lab tests |
+| SAM 3.1 | Segments the sample in lab-test photos; falls back to Sift's own segmentation |
+| Muse Voice Transcribe | Hands-free control in the lab tests |
 
-Without `MODEL_API_KEY` the app still works: guidance follows the written protocol and reports
-come from a template. Every response says which one produced it. The exception is voice
-transcription, which has no offline mode: without the key `POST /v1/transcribe` answers
-`503`, so type your message instead.
-
-SAM 3.1 segments over the Responses API (`POST /responses`; see the [SAM overview](https://dev.meta.ai/docs/sam/overview)).
-The path stays configurable (`SIFT_SAM_PATH`) in case the API moves.
+Code measures and the model explains. Muse never produces a number or a verdict. Every report is
+checked against the measurement and replaced by a template if it fails. Without `MODEL_API_KEY`
+everything except voice keeps working, and each response says which path produced it.
 
 ## Accuracy
 
@@ -79,12 +89,14 @@ later without rewriting it.
 
 ```
 web/  PWA (Vite, TypeScript) served by nginx; nginx proxies /api to the API
+  src/sensors/  phone sensing: torch, screen-light, contact, bubble, acoustic, vibration, motion, barcode
 api/sift/
   http/       FastAPI app, middleware, request schemas, thin routers
-  services/   run and calibration orchestration (no HTTP inside)
-  agent/      Meta Model API client, Lab Agent, guardrails
+  scan/       instant scans: wire schema, features, quality gates, reference matching, target models
+  services/   lab-test runs, calibration and product lookup (no HTTP inside)
+  agent/      Meta Model API client, Lab Agent, food identification, guardrails
   vision/     reference card, quality checks, colorimetric and screen-light analysis
-  domain/     assay registry; one YAML entry per test in domain/assays/
+  domain/     food profiles (domain/foods/) and lab-test assays (domain/assays/)
   data/       SQLite store (WAL)
   core/       config, errors, logging, security
 ```

@@ -1,0 +1,44 @@
+# Worked example of a food profile (docs/scanner.md). Every claim cites a source; statuses are
+# honest: "experimental" means a published phone method exists but Sift has not validated it.
+id: olive-oil
+name: Olive oil
+category: oil
+aliases: [extra virgin olive oil, evoo, olive oil, virgin olive oil]
+# Open Food Facts category tags that map a scanned barcode to this profile.
+off_category_tags: [en:olive-oils, en:extra-virgin-olive-oils, en:virgin-olive-oils]
+scan:
+  modalities: [screenlight, torch]
+  placement: Hold the bottle flat against the screen, label away from the camera.
+summary: >
+  The screen flashes a sequence of colours through the oil while the front camera records how much
+  of each colour comes back; the torch reading adds colour and clarity. The pattern is compared
+  with genuine olive oils scanned on the same kind of phone.
+targets:
+  - id: seed-oil-dilution
+    kind: adulteration
+    question: Has cheaper seed oil (sunflower, soybean, canola) been mixed in?
+    status: experimental
+    signals:
+      screenlight: Seed oils lack most of olive oil's chlorophyll and carotenoids, which absorb red and blue screen
+                   light differently.
+      torch: Overall colour and haze under white light shift as olive oil is diluted.
+    likely_causes:
+      - Mixed with a cheaper seed oil
+      - A refined or pomace olive oil sold as extra virgin
+      - A genuine oil from a different harvest or cultivar than the references
+    references:
+      - title: Quantification of extra virgin olive oil adulteration using smartphone videos
+        source: Talanta, 2020
+        url: https://pure.ulster.ac.uk/en/publications/quantification-of-extra-virgin-olive-oil-adulteration-using-smart/
+        finding: Screen-light video with PLS quantified 5-50% vegetable oil in EVOO (R2 0.98, RMSE 0.02), matching NIR
+                 and UV-vis and beating plain computer vision.
+references:
+  - title: Quantification of extra virgin olive oil adulteration using smartphone videos
+    source: Talanta, 2020
+    url: https://pure.ulster.ac.uk/en/publications/quantification-of-extra-virgin-olive-oil-adulteration-using-smart/
+    finding: Screen-light video with PLS quantified 5-50% vegetable oil in EVOO (R2 0.98, RMSE 0.02), matching NIR and
+             UV-vis and beating plain computer vision.
+limits:
+  - Dark green or tinted bottles block most of the light; decant into a clear glass if the scan is rejected.
+  - Needs genuine reference scans from the same phone model before it gives a match result.
+  - Bubble rise needs a sealed, mostly full, clear container; thin oils also need 120 fps or more.

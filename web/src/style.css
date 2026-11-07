@@ -1,24 +1,26 @@
-/* Sift Lab. The reference card's swatch strip is the one recurring motif; everything
-   else stays quiet like a bench notebook. */
+/* Sift. A pocket instrument: dark like a camera app, with the screen-light spectrum as the one
+   recurring motif because it is literally what the phone flashes when it measures. */
 :root {
-  --bench: #eef1ee;
-  --paper: #ffffff;
-  --ink: #15231e;
-  --muted: #56665f;
-  --rule: #cbd5d0;
-  --iodine: #34348f;
-  --pass: #2e7d4f;
-  --caution: #a86f00;
-  --flag: #b3261e;
+  --bench: #0c0f0e;      /* page */
+  --paper: #151a18;      /* raised surfaces */
+  --ink: #eef2ef;
+  --muted: #95a39c;
+  --rule: #26302c;
+  --iodine: #8fb4ff;     /* links and focus */
+  --pass: #4fd18b;
+  --caution: #f2b84b;
+  --flag: #ff6b4a;
+  --neutral: #a9b8c6;
   --head: "IBM Plex Sans Condensed", "Arial Narrow", sans-serif;
   --body: "IBM Plex Sans", system-ui, sans-serif;
-  --r: 6px;
-  color-scheme: light;
+  --mono: "IBM Plex Mono", ui-monospace, monospace;
+  --r: 10px;
+  color-scheme: dark;
 }
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bench: #101a16; --paper: #17241f; --ink: #e6ede9; --muted: #9db0a7; --rule: #2d3d36;
-    --iodine: #9c9cf0; --pass: #5cc489; --caution: #e0a83a; --flag: #f07a70; color-scheme: dark;
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --bench: #f2f4f2; --paper: #ffffff; --ink: #121815; --muted: #55635c; --rule: #d5ddd8;
+    --iodine: #2f55c8; --pass: #1f8a50; --caution: #9a6500; --flag: #c23a1d; --neutral: #4d6072; color-scheme: light;
   }
 }
 
@@ -44,21 +46,17 @@ main:focus-visible { outline: none; }
 
 /* Header */
 .top {
-  position: sticky; top: 0; z-index: 5; display: flex; align-items: center; justify-content: space-between;
-  gap: 12px; padding: max(10px, env(safe-area-inset-top)) 16px 10px; background: var(--bench);
-  border-bottom: 1px solid var(--rule);
+  position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 14px;
+  padding: max(10px, env(safe-area-inset-top)) 16px 10px; background: color-mix(in srgb, var(--bench) 88%, transparent);
+  backdrop-filter: blur(10px); border-bottom: 1px solid var(--rule);
 }
-.brand { display: flex; align-items: center; gap: 10px; color: var(--ink); text-decoration: none;
-  font: 600 1.25rem/1 var(--head); }
-.swatches { display: inline-grid; grid-template-columns: repeat(4, 9px); grid-auto-rows: 9px; gap: 2px;
-  padding: 3px; background: var(--paper); border: 1px solid var(--rule); border-radius: 3px; }
-.swatches i { display: block; box-shadow: inset 0 0 0 .5px rgba(0,0,0,.25); }
-.tier { display: flex; border: 1px solid var(--rule); border-radius: 999px; padding: 2px; background: var(--paper); }
-.tier button { border: 0; background: none; color: var(--muted); font: 500 .85rem var(--body);
-  padding: 6px 12px; border-radius: 999px; cursor: pointer; }
-.tier button[aria-pressed="true"] { background: var(--ink); color: var(--bench); }
-.foot { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; padding: 14px 16px calc(14px + env(safe-area-inset-bottom));
-  border-top: 1px solid var(--rule); font-size: .85rem; color: var(--muted); }
+.brand { color: var(--ink); text-decoration: none; font: 600 1.3rem/1 var(--head); letter-spacing: .02em; }
+.nav { display: flex; gap: 4px; margin-right: auto; }
+.nav a { color: var(--muted); text-decoration: none; font: 500 .92rem var(--body); padding: 6px 10px; border-radius: 8px; }
+.nav a[aria-current] { color: var(--ink); background: var(--paper); }
+.tier-toggle { border: 1px solid var(--rule); background: none; color: var(--muted); font: 500 .8rem var(--body);
+  padding: 6px 10px; border-radius: 999px; cursor: pointer; white-space: nowrap; }
+.tier-toggle[aria-pressed="true"] { background: var(--ink); color: var(--bench); border-color: var(--ink); }
 
 /* Buttons */
 .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 46px;

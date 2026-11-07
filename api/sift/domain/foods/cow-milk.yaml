@@ -1,0 +1,56 @@
+# Cow milk: the phone looks for water dilution through the carton. Added starch, urea or
+# detergent need chemical tests a phone alone cannot run, so they stay in limits, not targets.
+id: cow-milk
+name: Cow milk
+category: dairy
+aliases: [cow milk, milk, whole milk, toned milk]
+# Open Food Facts category tags that map a scanned barcode to this profile.
+off_category_tags: [en:milks, en:whole-milks]
+scan:
+  modalities: [torch, acoustic]
+  placement: Press the phone flat against the side of the milk carton or bottle.
+summary: >
+  The torch reading captures the milk's whiteness and opacity through the carton wall while the
+  speaker sweep records how the contents pass and damp sound. The pattern is compared with
+  genuine milk scanned on the same kind of phone.
+targets:
+  - id: water-dilution
+    kind: adulteration
+    question: Has water been added to dilute the milk?
+    status: research
+    signals:
+      torch: Water dilution lowers milk solids, so the milk looks less white and more translucent under the torch.
+      acoustic: Added water pulls density toward 1.000, which shifts how the contents pass and damp the sound sweep.
+    likely_causes:
+      - Watered-down milk
+      - A lower-fat milk (skimmed vs whole) than the references
+      - A different brand or batch than the references
+      - Carton shape or fill level changing the sound path
+    references:
+      - title: Classification of Milk Tests
+        source: Milk Testing guide
+        url: https://www.milktesting.in/index/1-introduction-to-milk-testing/1-3-classification-of-milk-tests
+        finding: The standard rapid test for watered milk is the lactometer (cow milk 1.028-1.032); it needs a milk
+                 sample and the instrument, not a phone.
+      - title: Quantification of milk adulterants (starch, H2O2, and NaClO) using colorimetric assays coupled to
+               smartphone image analysis
+        source: Microchemical Journal, 2020
+        url: https://knowledge.lancashire.ac.uk/id/eprint/33253/
+        finding: Phone image analysis quantified starch, peroxide and hypochlorite in milk, but only by reading
+                 colorimetric reagent reactions, so it is not reagent-free.
+references:
+  - title: Classification of Milk Tests
+    source: Milk Testing guide
+    url: https://www.milktesting.in/index/1-introduction-to-milk-testing/1-3-classification-of-milk-tests
+    finding: The standard rapid test for watered milk is the lactometer (cow milk 1.028-1.032); it needs a milk sample
+             and the instrument, not a phone.
+  - title: Quantification of milk adulterants (starch, H2O2, and NaClO) using colorimetric assays coupled to smartphone
+           image analysis
+    source: Microchemical Journal, 2020
+    url: https://knowledge.lancashire.ac.uk/id/eprint/33253/
+    finding: Phone image analysis quantified starch, peroxide and hypochlorite in milk, but only by reading colorimetric
+             reagent reactions, so it is not reagent-free.
+limits:
+  - Added starch, urea or detergent need chemical tests (iodine, pH) that a phone alone cannot run;
+    this profile only looks for water dilution.
+  - Needs genuine reference scans from the same phone model before it gives a match result.

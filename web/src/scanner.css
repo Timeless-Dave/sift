@@ -1,0 +1,131 @@
+/* Scanner, answer and foods screens. Scoped under their section classes so the older lab-test
+   views keep their own styles. */
+
+html, body { overflow-x: hidden; }
+.foot { display: flex; gap: 16px; flex-wrap: wrap; align-items: center; padding: 14px 16px calc(14px + env(safe-area-inset-bottom));
+  color: var(--muted); font-size: .82rem; border-top: 1px solid var(--rule); }
+.foot #agent-status { margin-right: auto; }
+.foot a { color: var(--muted); }
+
+.eyebrow { font: 500 .78rem/1.2 var(--body); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0 0 6px; }
+.fine { font-size: .82rem; }
+.mono { font-family: var(--mono); }
+.badge { display: inline-block; font: 600 .7rem/1 var(--body); letter-spacing: .05em; text-transform: uppercase;
+  padding: 4px 7px; border-radius: 6px; border: 1px solid var(--rule); color: var(--ink); vertical-align: middle; }
+
+/* The spectrum: the screen-light sequence. */
+.spectrum { display: flex; height: 6px; border-radius: 3px; overflow: hidden; width: 132px; }
+.spectrum i { flex: 1; }
+.spectrum i:first-child { box-shadow: inset 0 0 0 1px rgba(0,0,0,.2); }
+
+/* ---- Scanner (home) -------------------------------------------------------------------- */
+body[data-page="scan"] main { max-width: 560px; padding-top: 0; }
+.scanner { display: flex; flex-direction: column; gap: 14px; }
+.scanner .viewfinder { position: relative; margin: 0 -16px; aspect-ratio: auto; height: min(58dvh, 520px);
+  background: radial-gradient(120% 90% at 50% 40%, #1b2320 0%, #070908 70%); border-radius: 0 0 18px 18px; overflow: hidden; }
+.scanner .viewfinder video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity .3s; }
+.scanner .viewfinder[data-state="live"] video { opacity: 1; }
+.scanner .reticle { position: absolute; inset: 22% 18%; pointer-events: none; opacity: .0; transition: opacity .3s; }
+.scanner .viewfinder[data-state="live"] .reticle { opacity: .9; }
+.scanner .reticle span { position: absolute; width: 26px; height: 26px; border: 2px solid #fff; }
+.scanner .reticle span:nth-child(1) { top: 0; left: 0; border-right: 0; border-bottom: 0; border-radius: 8px 0 0 0; }
+.scanner .reticle span:nth-child(2) { top: 0; right: 0; border-left: 0; border-bottom: 0; border-radius: 0 8px 0 0; }
+.scanner .reticle span:nth-child(3) { bottom: 0; right: 0; border-left: 0; border-top: 0; border-radius: 0 0 8px 0; }
+.scanner .reticle span:nth-child(4) { bottom: 0; left: 0; border-right: 0; border-top: 0; border-radius: 0 0 0 8px; }
+.start-cam { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
+  border: 0; background: none; color: #eef2ef; font: 400 .95rem var(--body); cursor: pointer; }
+.start-cam strong { font: 600 1.6rem/1.15 var(--head); max-width: 14ch; text-align: center; }
+.start-cam span:last-child { color: #95a39c; }
+.start-cam .spectrum { width: 168px; height: 8px; margin-bottom: 8px; }
+.scanner .viewfinder[data-state="live"] .start-cam { display: none; }
+.vf-status { position: absolute; left: 12px; right: 12px; bottom: 12px; margin: 0; max-width: none; padding: 8px 12px; border-radius: 10px;
+  background: rgba(7,9,8,.72); color: #eef2ef; font-size: .9rem; backdrop-filter: blur(6px); }
+.vf-status:empty { display: none; }
+
+.deck { display: flex; flex-direction: column; gap: 12px; }
+.checking { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.checking .eyebrow { margin: 0; }
+.food-pick { font: 600 1.35rem/1.1 var(--head); color: var(--ink); background: none; border: 0; padding: 4px 22px 4px 0; cursor: pointer;
+  position: relative; text-align: left; }
+.food-pick::after { content: ""; position: absolute; right: 4px; top: 50%; width: 7px; height: 7px; margin-top: -6px;
+  border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted); transform: rotate(45deg); }
+.food-pick.empty { color: var(--muted); }
+.checking .ask { margin-left: auto; border: 1px solid var(--rule); background: var(--paper); color: var(--ink); border-radius: 999px;
+  padding: 7px 12px; font: 500 .85rem var(--body); cursor: pointer; display: inline-block; }
+.food-list { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { border: 1px solid var(--rule); background: var(--paper); color: var(--ink); border-radius: 999px; padding: 7px 12px;
+  font: 500 .88rem var(--body); cursor: pointer; }
+.chip.hint { border-color: var(--iodine); }
+.placement { margin: 0; color: var(--ink); }
+.sensor-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 1px; background: var(--rule); border: 1px solid var(--rule); border-radius: var(--r); overflow: hidden; }
+.sensor-list:empty { display: none; }
+.sensor-list li { background: var(--paper); padding: 9px 12px; font-size: .86rem; color: var(--muted); }
+.sensor-list li b { color: var(--ink); font-weight: 600; margin-right: 6px; }
+.sensor-list li.off { opacity: .55; }
+.ref-toggle { font-size: .9rem; display: flex; gap: 8px; align-items: center; }
+.ref-form { display: grid; gap: 8px; }
+.ref-form select, .ref-form input { font: inherit; padding: 9px 10px; border-radius: 8px; border: 1px solid var(--rule); background: var(--paper); color: var(--ink); }
+.scan-btn { font: 600 1.1rem var(--body); padding: 16px; border-radius: 14px; border: 0; background: var(--ink); color: var(--bench); cursor: pointer; }
+.scan-btn:disabled { opacity: .35; cursor: not-allowed; }
+
+/* Full-screen scan progress (the screen-light module draws its own colour flashes above this). */
+.scan-overlay { position: fixed; inset: 0; z-index: 40; background: #070908; color: #eef2ef; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 14px; padding: 24px; text-align: center; }
+.scan-overlay .spectrum { width: 200px; height: 8px; }
+.scan-overlay .pose { font: 600 1.5rem/1.2 var(--head); max-width: 18ch; margin: 0; }
+.scan-overlay .stage { color: #95a39c; margin: 0; min-height: 1.5em; }
+.scan-overlay .bar { width: min(280px, 80vw); height: 4px; background: #26302c; border-radius: 2px; overflow: hidden; }
+.scan-overlay .bar i { display: block; height: 100%; width: 0; background: #eef2ef; transition: width .2s; }
+
+/* ---- Answer ---------------------------------------------------------------------------- */
+.answer h1 { font-size: 2rem; margin-top: 10px; }
+.answer .lede { color: var(--muted); }
+.answer.state-matches h1 { color: var(--pass); }
+.answer.state-differs h1 { color: var(--flag); }
+.answer.state-no_reference h1, .answer.state-stored h1 { color: var(--neutral); }
+.answer.state-rejected h1 { color: var(--caution); }
+.answer .meter { display: block; width: 100%; position: relative; height: 34px; margin: 18px 0 6px; border-radius: 8px; background: var(--paper);
+  border: 1px solid var(--rule); overflow: visible; }
+.answer .meter .zone { position: absolute; left: 0; top: 0; bottom: 0; display: flex; align-items: center; padding-left: 10px;
+  background: color-mix(in srgb, var(--pass) 18%, transparent); border-right: 2px dashed var(--pass); border-radius: 8px 0 0 8px;
+  font-size: .75rem; color: var(--muted); white-space: nowrap; }
+.answer .meter .dot { position: absolute; top: 50%; width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: 50%;
+  background: var(--ink); box-shadow: 0 0 0 3px var(--bench); }
+.answer .note { background: var(--paper); border: 1px solid var(--rule); border-radius: var(--r); padding: 12px 14px; margin: 16px 0; }
+.answer .note h2 { font-size: 1.05rem; margin-top: 0; }
+.answer .note ul { margin: 0; padding-left: 18px; }
+.findings { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.findings li { background: var(--paper); border: 1px solid var(--rule); border-radius: var(--r); padding: 12px 14px; display: grid; gap: 6px; }
+.findings li p { margin: 0; font-weight: 500; }
+.findings li > span:last-child { color: var(--muted); font-size: .88rem; }
+.findings .badge { justify-self: start; }
+.f-model .badge { border-color: var(--pass); color: var(--pass); }
+.f-research .badge { border-color: var(--neutral); color: var(--neutral); }
+.readings { margin: 20px 0; }
+.readings summary { font: 600 1.1rem var(--head); cursor: pointer; margin-bottom: 8px; }
+.readings figure { margin: 14px 0; }
+.readings figcaption { font-size: .85rem; color: var(--muted); margin-bottom: 6px; }
+.readings .bars { display: flex; align-items: flex-end; gap: 4px; height: 90px; padding: 6px; background: #070908; border-radius: 8px; }
+.readings .bars span { flex: 1; min-height: 2px; border-radius: 2px 2px 0 0; }
+.readings .curve { width: 100%; height: 110px; background: #070908; border-radius: 8px; }
+.readings .curve polyline { fill: none; stroke: #eef2ef; stroke-width: 1.6; vector-effect: non-scaling-stroke; }
+.readings .axis { display: flex; justify-content: space-between; font: .75rem var(--mono); color: var(--muted); }
+.swatch-pair { display: flex; gap: 8px; }
+.swatch-pair span { flex: 1; height: 56px; border-radius: 8px; display: flex; align-items: flex-end; padding: 6px 8px;
+  font: .75rem var(--mono); color: #fff; text-shadow: 0 1px 2px #000; border: 1px solid var(--rule); }
+
+/* ---- Foods ----------------------------------------------------------------------------- */
+.foods .legend p { margin: 0 0 6px; font-size: .88rem; color: var(--muted); }
+.food-index { list-style: none; padding: 0; margin: 18px 0; display: grid; gap: 8px; }
+.food-index a { display: grid; gap: 6px; padding: 12px 14px; background: var(--paper); border: 1px solid var(--rule);
+  border-radius: var(--r); color: var(--ink); text-decoration: none; }
+.food-index .name { font: 600 1.15rem var(--head); }
+.food-index .qs { display: flex; flex-wrap: wrap; gap: 6px; }
+.food-index .q { font-size: .78rem; padding: 3px 8px; border-radius: 6px; border: 1px solid var(--rule); color: var(--muted); }
+.food-index .q.s-experimental { border-color: var(--iodine); color: var(--ink); }
+.foods .target { border-top: 1px solid var(--rule); padding-top: 14px; margin-top: 18px; }
+.foods .target h2 { margin-top: 4px; }
+.foods dl { display: grid; grid-template-columns: max-content 1fr; gap: 6px 12px; font-size: .9rem; }
+.foods dt { font-weight: 600; }
+.foods dd { margin: 0; color: var(--muted); }
+.btn.primary, a.btn.primary { background: var(--ink); color: var(--bench); }

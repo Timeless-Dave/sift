@@ -68,6 +68,15 @@ CAPTURE_TOOL = {"type": "function", "function": {
         "advice": {"type": "string", "description": "One sentence telling the user what to do next."}},
         "required": ["sample_visible", "matches_expected", "issues", "advice"]}}}
 
+SCAN_SYSTEM = """You are the Sift Lab Agent, rewriting a phone-scan result in plain words.
+Rules:
+- Never invent measurements. Numbers, the match result and model verdicts come only from the measured result
+  you are given; keep every number exactly as written.
+- A "differs" result is not proof of adulteration. Name only the possible causes you are given.
+- Never say food is safe, pure or certified; a phone scan can't establish that.
+- At most 4 short sentences: what the scan showed, how confident Sift is and why, and what to do next.
+"""
+
 
 def _assay_brief(assay: dict) -> str:
     steps = "\n".join(f"- [{s['id']}] {s['title']}: {s['instruction']}" for s in assay.get("protocol", []))
@@ -191,6 +200,30 @@ class LabAgent:
         check = g.check_report(text, facts, assay)
         if not check.ok:
             log.warning("report blocked by guardrails", extra={"fields": {"reasons": check.reasons}})
+            return {"agent": "offline", "text": template, "fallback": "guardrail", "guardrail": check.reasons}
+        return {"agent": "muse-spark", "text": text}
+
+    def write_scan_report(self, food: dict, facts: dict, template: str) -> dict:
+        """Rewrite a scan template in plain words. The guardrails keep the model's numbers and
+        verdict honest; anything that fails falls back to the deterministic template."""
+        if not self.client.online:
+            return {"agent": "offline", "text": template}
+        messages = [
+            {"role": "system", "content": SCAN_SYSTEM},
+            {"role": "user", "content": (
+                f"Food: {food.get('name', food.get('id', ''))}\nMeasured result (from code, do not change): "
+                f"{json.dumps(facts)}\nDraft result: {template}\nRewrite the draft for a shopper in at most "
+                "4 sentences, keeping every number exactly.")},
+        ]
+        try:
+            msg = self.client.chat(messages)
+        except MetaUnavailable as exc:
+            log.warning("scan report failed: %s", exc)
+            return {"agent": "offline", "text": template, "fallback": "agent_unavailable"}
+        text = (msg.get("content") or "").strip()
+        check = g.check_report(text, facts, food)
+        if not check.ok:
+            log.warning("scan report blocked by guardrails", extra={"fields": {"reasons": check.reasons}})
             return {"agent": "offline", "text": template, "fallback": "guardrail", "guardrail": check.reasons}
         return {"agent": "muse-spark", "text": text}
 

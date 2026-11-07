@@ -1,0 +1,47 @@
+# Sunflower / generic cooking oil: used frying oil darkens and oxidises, which cameras can see,
+# but no published phone method detects used oil in cooking oil yet, so the target stays research.
+id: sunflower-oil
+name: Sunflower oil
+category: oil
+aliases: [sunflower oil, cooking oil, vegetable oil, refined oil, frying oil]
+# Open Food Facts category tags that map a scanned barcode to this profile.
+off_category_tags: [en:sunflower-oils, en:vegetable-oils]
+scan:
+  modalities: [screenlight, torch]
+  placement: Press the phone flat against the side of the oil bottle.
+summary: >
+  The screen flashes colours through the oil while the front camera records what comes back, and
+  the torch reading adds colour and haze. The pattern is compared with fresh oil scanned on the
+  same kind of phone.
+targets:
+  - id: used-oil-mixing
+    kind: adulteration
+    question: Is this used frying oil, or mixed with it?
+    status: research
+    signals:
+      screenlight: Frying darkens oil and builds polar compounds that shift absorption of each screen colour.
+      torch: Used oil looks darker and hazier than fresh oil under white light.
+    likely_causes:
+      - Used frying oil mixed in or re-sold as fresh
+      - A different seed blend than the references
+      - Aged stock oxidised on the shelf
+    references:
+      - title: Can the Image Processing Technique Be Potentially Used to Evaluate Quality of Frying Oil?
+        source: Journal of Food Quality, 2019 (record via Europe PMC)
+        url: https://doi.org/10.1155/2019/6580320
+        finding: A lab computer-vision contact angle correlated with frying-oil FFA and polar materials (R2 above 0.94)
+                 and predicted them (R2 above 0.91); a camera method, not a phone.
+      - title: Quantification of extra virgin olive oil adulteration using smartphone videos
+        source: Talanta, 2020
+        url: https://pure.ulster.ac.uk/en/publications/quantification-of-extra-virgin-olive-oil-adulteration-using-smart/
+        finding: Screen-light video quantified 5-50% fresh vegetable oil in olive oil (R2 0.98), showing the phone
+                 modality works for oil mixing but not for used oil.
+references:
+  - title: Can the Image Processing Technique Be Potentially Used to Evaluate Quality of Frying Oil?
+    source: Journal of Food Quality, 2019 (record via Europe PMC)
+    url: https://doi.org/10.1155/2019/6580320
+    finding: A lab computer-vision contact angle correlated with frying-oil FFA and polar materials (R2 above 0.94) and
+             predicted them (R2 above 0.91); a camera method, not a phone.
+limits:
+  - Used-oil markers (polar compounds, polymers) are confirmed only by lab tests.
+  - No published phone method detects used oil in cooking oil yet.

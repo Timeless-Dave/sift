@@ -1,0 +1,59 @@
+# Turmeric powder: lead chromate and metanil yellow are confirmed only by lab tests; no
+# published phone-only method detects them, so the target stays research.
+id: turmeric
+name: Turmeric powder
+category: spice
+aliases: [turmeric, turmeric powder, haldi, ground turmeric]
+# Open Food Facts category tags that map a scanned barcode to this profile.
+off_category_tags: [en:turmeric, en:turmeric-powder, en:spices]
+scan:
+  modalities: [screenlight, torch]
+  placement: Hold the phone over the open powder or the clear window of the packet.
+summary: >
+  The screen flashes colours onto the powder while the front camera records the reflections, and
+  the torch reading adds brightness and texture. The pattern is compared with genuine turmeric
+  scanned on the same kind of phone.
+targets:
+  - id: dye-adulteration
+    kind: adulteration
+    question: Has lead chromate or metanil yellow dye been added for colour?
+    status: research
+    signals:
+      screenlight: Both dyes add a harsh yellow that shifts how the powder reflects each screen colour.
+      torch: Dye-adulterated powder looks brighter and less matte than pure turmeric under white light.
+    likely_causes:
+      - Lead chromate or metanil yellow added for colour
+      - A different turmeric variety, grind or curcumin level than the references
+      - Added starch or chalk, which also need lab tests to confirm
+    references:
+      - title: Stanford researchers find lead in turmeric
+        source: Stanford News, 2019
+        url: https://news.stanford.edu/stories/2019/09/lead-found-turmeric
+        finding: Some processors in Bangladesh polish turmeric with industrial lead chromate pigment, a practice linked
+                 to elevated blood lead levels.
+      - title: Identifying Turmeric Powder by Source and Metanil Yellow Adulteration Levels Using Near-Infrared Spectra
+               and PCA-SIMCA Modeling
+        source: Journal of Food Protection, 2020
+        url: https://pubmed.ncbi.nlm.nih.gov/32034409/
+        finding: A handheld NIR spectrometer with PCA-SIMCA classified 0-30% metanil yellow in turmeric from 6
+                 retailers; a lab instrument, not a phone.
+      - title: Smartphone-based imaging colorimetric assay for monitoring the quality of curcumin in turmeric powder
+        source: Analytical Sciences, 2024
+        url: https://pubmed.ncbi.nlm.nih.gov/38607598/
+        finding: Smartphone colorimetry quantified curcumin (LOD 0.12 mg/L, HPLC-validated) but needs a ferric-chloride
+                 reaction, acetonitrile extraction and an LED lightbox.
+references:
+  - title: Stanford researchers find lead in turmeric
+    source: Stanford News, 2019
+    url: https://news.stanford.edu/stories/2019/09/lead-found-turmeric
+    finding: Some processors in Bangladesh polish turmeric with industrial lead chromate pigment, a practice linked to
+             elevated blood lead levels.
+  - title: Smartphone-based imaging colorimetric assay for monitoring the quality of curcumin in turmeric powder
+    source: Analytical Sciences, 2024
+    url: https://pubmed.ncbi.nlm.nih.gov/38607598/
+    finding: Smartphone colorimetry quantified curcumin (LOD 0.12 mg/L, HPLC-validated) but needs a ferric-chloride
+             reaction, acetonitrile extraction and an LED lightbox.
+limits:
+  - Lead and metanil yellow are confirmed only by lab tests (AAS/ICP-MS, HPLC);
+    a phone scan can only flag suspect colour.
+  - No published phone-only method detects these dyes in turmeric yet.

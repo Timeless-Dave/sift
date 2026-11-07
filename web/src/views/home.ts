@@ -15,13 +15,14 @@ export async function homeView(root: HTMLElement) {
 
   root.innerHTML = `
     <section class="intro">
-      <h1>${research ? "Run, calibrate and log food assays" : "Check your food before you buy it"}</h1>
+      <a class="back" href="#/">Back to the scanner</a>
+      <h1>Lab tests</h1>
       <p>${research
-        ? "Every test follows a published method. Calibrate it for your phone, record runs with known answers, and export the raw data."
-        : "Pick what you're testing. Sift walks you through each step and tells you how sure it is."}</p>
+        ? "Reagent tests that follow a published method. Calibrate them per phone, record runs with known answers, export the raw data."
+        : "When a scan doesn't match, these confirm it at home: a few drops of a pharmacy reagent, photographed on the printed card."}</p>
     </section>
     <section aria-labelledby="ready-h">
-      <h2 id="ready-h">Tests you can run now</h2>
+      <h2 id="ready-h">Reagent tests</h2>
       <ul class="assays">${ready.map((a) => row(a, research)).join("")}</ul>
     </section>
     <section aria-labelledby="planned-h" class="planned">

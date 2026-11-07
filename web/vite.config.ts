@@ -13,11 +13,11 @@ export default defineConfig({
       registerType: "autoUpdate",
       includeAssets: ["icon.svg"],
       manifest: {
-        name: "Sift Lab",
+        name: "Sift",
         short_name: "Sift",
-        description: "Food-fraud screening tests run with your phone.",
-        theme_color: "#15231E",
-        background_color: "#EEF1EE",
+        description: "Scan food for adulteration with your phone.",
+        theme_color: "#0c0f0e",
+        background_color: "#0c0f0e",
         display: "standalone",
         start_url: "/",
         icons: [
