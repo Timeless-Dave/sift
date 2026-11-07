@@ -40,6 +40,12 @@ def test_card_svg_has_four_markers_and_window():
     assert svg.startswith("<svg") and "Place sample inside the ring" in svg
 
 
+def test_card_svg_cached():
+    card.card_svg.cache_clear()
+    assert card.card_svg() is card.card_svg()
+    assert card.card_svg.cache_info().hits >= 1
+
+
 @pytest.mark.parametrize("cast", [(1, 1, 1), (1.1, 0.95, 0.8), (0.85, 0.95, 1.12)])
 def test_colour_correction_recovers_sample_under_cast(cast):
     rgb = (40, 60, 140)
@@ -68,6 +74,16 @@ def test_blurry_capture_is_rejected():
     res = colorimetric.analyze(photo_of_card((45, 50, 110), blur=2.5), assay, None)
     assert res["status"] == "rejected"
     assert any(p["code"] == "blurry" for p in res["quality"]["problems"])
+
+
+def test_overexposed_with_sample_mask():
+    from sift.vision.quality import check_card_capture
+    warped = np.full((100, 100, 3), 255, np.uint8)
+    window = np.ones((100, 100), bool)
+    with_mask = check_card_capture(warped, window, 1.0, np.ones((100, 100), bool))
+    assert any(p["code"] == "overexposed" for p in with_mask.problems)
+    without_mask = check_card_capture(warped, window, 1.0, None)
+    assert any(p["code"] == "overexposed" for p in without_mask.problems)
 
 
 def test_rule_parser_rejects_code():
@@ -100,8 +116,18 @@ def test_pls_trains_and_predicts():
                for p in [0, 0, 10, 10, 20, 20, 30, 30, 50, 50]]
     payload, metrics = screenlight.train(samples)
     assert metrics["r2_cv"] > 0.9
+    assert metrics["validation"] == "leave-one-out cross-validation"
     pred, inside = screenlight.predict(payload, screenlight.vectorize(fake_scan(25, rng), SEQ))
     assert inside and abs(pred - 25) < 5
+
+
+def test_pls_train_uses_kfold_for_large_n():
+    rng = np.random.default_rng(1)
+    samples = [{"features": screenlight.vectorize(fake_scan(p, rng), SEQ), "known_value": p}
+               for p in ([0] * 70 + [10] * 70 + [20] * 70)]
+    _, metrics = screenlight.train(samples)
+    assert metrics["samples"] == 210
+    assert metrics["validation"] == "5-fold cross-validation"
 
 
 def test_screenlight_rejects_room_light():

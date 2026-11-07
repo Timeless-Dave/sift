@@ -8,6 +8,7 @@ All geometry is in millimetres on the card.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from functools import lru_cache
 
 import cv2
 import numpy as np
@@ -62,8 +63,9 @@ def _marker_bits(marker_id: int) -> np.ndarray:
 # Printing
 # ---------------------------------------------------------------------------------------
 
+@lru_cache(maxsize=1)
 def card_svg() -> str:
-    """Printable card at true size (print at 100%, no scaling)."""
+    """Printable card at true size (print at 100%, no scaling). Cached: the artwork never changes."""
     parts = [
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{CARD_W}mm" height="{CARD_H}mm" '
         f'viewBox="0 0 {CARD_W} {CARD_H}">',

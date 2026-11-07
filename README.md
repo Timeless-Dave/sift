@@ -14,7 +14,7 @@ Everything in this repository was written during the hackathon, Oct 26 to Nov 4,
 | Lead in turmeric | Rhodizonate lead swab, read against the reference card | Consumer lead swab, printed card |
 | Olive oil purity | Screen-light scan: the screen flashes colours, the front camera records the reflections | A box or hood that blocks room light |
 
-Planned tests (honey origin by pollen, pork in minced beef, urea in milk, milk pH) are in the
+Planned tests (honey origin by pollen, pork in minced beef, urea in milk, milk acidity) are in the
 registry with their source papers and are not runnable yet.
 
 Sift will not:
@@ -26,11 +26,10 @@ Sift will not:
 ## Three tiers, one API
 
 - **Shopper**: guided steps, a plain-language result and how sure Sift is.
-- **Researcher**: practice runs, raw features, per-phone calibration, validation runs that
-  measure accuracy, CSV and JSON export. Operators can set SIFT_PROTECT_CALIBRATION=1 so
-  calibration writes and validation truth need an API key.
-- **Developers and organisations**: the same REST API with API keys. See `/docs` on a dev server
-  (disabled when `SIFT_ENV=production`).
+- **Researcher**: practice runs in the app (walk the protocol, nothing is sent or saved), raw features,
+  per-phone calibration, validation runs that measure accuracy, CSV and JSON export. Operators can set
+  SIFT_PROTECT_CALIBRATION=1 so calibration writes and validation truth need an API key.
+- **Developers and organisations**: the same REST API with API keys. See `/docs` on a running server.
 
 ## How a result is produced
 
@@ -51,7 +50,7 @@ Sift will not:
 
 | Model | Job |
 | --- | --- |
-| Muse Spark (`muse-spark-1.3`) | Lab Agent: guides each protocol step with tool calls (`go_to_step`, `open_camera`, `start_timer`), reviews the rectified card image (`capture_review`), writes the report |
+| Muse Spark (`muse-spark-1.3`) | Lab Agent: guides each protocol step with tool calls (`go_to_step`, `open_camera`, `start_timer`), reviews the rectified card image on passing captures (`capture_review`), writes the report |
 | Muse Voice Transcribe | Hands-free control while your hands are wet or gloved |
 | SAM 3.1 | Segments the sample inside the ring; falls back to Sift's own segmentation if unavailable |
 
@@ -83,7 +82,7 @@ api/sift/
   services/   run and calibration orchestration (no HTTP inside)
   agent/      Meta Model API client, Lab Agent, guardrails
   vision/     reference card, quality checks, colorimetric and screen-light analysis
-  domain/     assay registry; one YAML file per test in domain/assays/
+  domain/     assay registry; one YAML entry per test in domain/assays/
   data/       SQLite store (WAL)
   core/       config, errors, logging, security
 ```

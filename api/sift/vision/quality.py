@@ -59,7 +59,7 @@ def check_card_capture(warped_bgr: np.ndarray, window_mask: np.ndarray, fit_delt
         q.metrics["glare_fraction"] = round(glare, 3)
         if glare > GLARE_MAX:
             q.fail("glare", "Reflections are washing out the sample.", "Tilt the phone slightly or turn off the flash.")
-    elif clipped > CLIPPED_MAX:
+    if clipped > CLIPPED_MAX:
         q.fail("overexposed", "The sample area is overexposed.", "Turn off the flash or move away from direct light.")
     return q
 

@@ -114,13 +114,17 @@ def identity(request: Request, x_sift_key: str | None = Header(default=None),
     return who
 
 
-def viewer(x_sift_key: str | None = Header(default=None), c: Container = Depends(container)) -> str | None:
+def viewer(request: Request, x_sift_key: str | None = Header(default=None),
+           c: Container = Depends(container)) -> str | None:
     """For the open catalog: the caller's key prefix if they sent a valid key, else None.
-    Unlike `identity`, it neither demands a key nor counts against the rate limit."""
+    Unlike `identity`, it never demands a key, but it counts against the rate limit."""
+    ip = client_ip(request, c)
     if not x_sift_key:
+        c.limiter.hit("api", ip, c.settings.limits.rate_public)
         return None
     if not c.store.use_key(hash_key(x_sift_key)):
         raise Unauthorized("Unknown or revoked API key.")
+    c.limiter.hit("api", x_sift_key[:12], c.settings.limits.rate_keyed)
     return x_sift_key[:12]
 
 

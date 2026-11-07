@@ -186,6 +186,46 @@ def test_docs_enabled_in_development(client):
     assert client.get("/openapi.json").status_code == 200
 
 
+def test_catalog_health_card_rate_limited(make_client):
+    for path in ["/v1/assays", "/v1/assays/milk-starch-iodine", "/health", "/v1/card.svg"]:
+        c = make_client(SIFT_RATE_PUBLIC=3)
+        codes = [c.get(path).status_code for _ in range(4)]
+        assert codes == [200, 200, 200, 429], path
+
+
+def test_catalog_keyed_uses_keyed_limit(make_client):
+    c = make_client(SIFT_RATE_PUBLIC=1, SIFT_RATE_KEYED=5, SIFT_ADMIN_TOKEN="k" * 30)
+    key = c.post("/v1/keys", json={"owner": "lab"}, headers={"X-Admin-Token": "k" * 30}).json()["key"]
+    h = {"X-Sift-Key": key}
+    assert c.get("/v1/assays").status_code == 200
+    assert c.get("/v1/assays").status_code == 429
+    for _ in range(5):
+        assert c.get("/v1/assays", headers=h).status_code == 200
+    assert c.get("/v1/assays", headers=h).status_code == 429
+
+
+def test_oversize_json_rejected_before_parsing(make_client):
+    c = make_client(SIFT_MAX_JSON_BYTES=1000)
+    frames = fake_scan(0, np.random.default_rng(0))
+    frames["white"] = [[0.5, 0.5, 0.5]] * 200
+    r = c.post("/v1/runs/screenlight", json={"assay_id": "olive-oil-screenlight", "frames": frames})
+    assert r.status_code == 413 and r.json()["error"]["code"] == "too_large"
+
+
+def test_json_cap_ignores_multipart(make_client):
+    c = make_client(SIFT_MAX_JSON_BYTES=1000)
+    assert post_card(c).status_code == 200
+
+
+def test_frames_schema_caps_before_assay_lookup(client):
+    many_colours = {f"c{i}": [[0.1, 0.1, 0.1]] for i in range(33)}
+    r = client.post("/v1/runs/screenlight", json={"assay_id": "no-such-assay", "frames": many_colours})
+    assert r.status_code == 422
+    many_frames = {"white": [[0.1, 0.1, 0.1]] * 61, "black": [[0.0, 0.0, 0.0]]}
+    r = client.post("/v1/runs/screenlight", json={"assay_id": "no-such-assay", "frames": many_frames})
+    assert r.status_code == 422
+
+
 def test_agent_offline_matches_whole_words(client):
     def step_after(message, step="boil"):
         return client.post("/v1/agent/turn", json={"assay_id": "milk-starch-iodine", "step_id": step,
