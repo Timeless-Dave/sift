@@ -107,3 +107,23 @@ def test_pls_trains_and_predicts():
 def test_screenlight_rejects_room_light():
     q = check_screenlight(fake_scan(0, np.random.default_rng(1), ambient=0.3), 0.08)
     assert not q.ok and any(p["code"] == "ambient_light" for p in q.problems)
+
+
+def test_curve_rejects_levels_with_the_same_reading():
+    with pytest.raises(ValueError):
+        colorimetric.fit_curve([(5.0, 0.0), (5.0, 1.0), (5.0, 2.0)])
+
+
+@pytest.mark.parametrize("ext,size", [(".png", (640, 480)), (".jpg", (1200, 900)), (".webp", (700, 500))])
+def test_image_size_reads_headers(ext, size):
+    from sift.core.security import image_size
+    raw = cv2.imencode(ext, np.full((size[1], size[0], 3), 90, np.uint8))[1].tobytes()
+    assert image_size(raw) == size
+
+
+def test_decode_refuses_pixel_bomb():
+    from sift.core.errors import TooLarge
+    from sift.services.runs import _decode
+    png = cv2.imencode(".png", np.full((8000, 8000, 3), 200, np.uint8))[1].tobytes()  # ~200 KB, 64 Mpx
+    with pytest.raises(TooLarge):
+        _decode(png, 12 * 1024 * 1024)

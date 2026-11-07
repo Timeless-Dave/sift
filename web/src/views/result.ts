@@ -1,5 +1,5 @@
 import { api, type Assay, type Band, type RunResult } from "../api";
-import { download, esc, getTier } from "../util";
+import { download, esc, getTier, safeUrl } from "../util";
 
 const verdictWord: Record<string, string> = { pass: "Looks fine", caution: "Check further", flag: "Flagged", unknown: "Not yet known" };
 
@@ -21,7 +21,7 @@ export async function resultView(root: HTMLElement, runId: string) {
       ${r.capture_review?.issues?.length ? `<div class="note"><h2>What the Lab Agent noticed</h2><ul>${r.capture_review.issues.map((i) => `<li>${esc(i)}</li>`).join("")}</ul></div>` : ""}
       ${assay.confirm_with && r.status === "ok" ? `<div class="note"><h2>How a lab would confirm this</h2><p>${esc(assay.confirm_with)}</p></div>` : ""}
       <details class="sources"><summary>Method and sources</summary>
-        <ul>${assay.references.map((ref) => `<li><a href="${esc(ref.url)}" target="_blank" rel="noopener">${esc(ref.title)}</a>, ${esc(ref.source)}. ${esc(ref.finding)}</li>`).join("")}</ul>
+        <ul>${assay.references.map((ref) => `<li>${safeUrl(ref.url) ? `<a href="${esc(ref.url)}" target="_blank" rel="noopener">${esc(ref.title)}</a>` : esc(ref.title)}, ${esc(ref.source)}. ${esc(ref.finding)}</li>`).join("")}</ul>
         ${assay.limitations?.length ? `<h3>Limits of this test</h3><ul>${assay.limitations.map((l) => `<li>${esc(l)}</li>`).join("")}</ul>` : ""}
       </details>
       ${research ? researchPanel(r, assay) : ""}
@@ -53,7 +53,7 @@ function scale(r: RunResult, assay: Assay) {
   const segs = bands.map((b: Band) => {
     const hi = Math.min(b.max, top);
     const w = Math.max(0, ((hi - prev) / top) * 100);
-    const s = `<span class="seg ${b.verdict}" style="width:${w}%"><b>${esc(fmt(prev))}</b></span>`;
+    const s = `<span class="seg ${esc(b.verdict)}" style="width:${w}%"><b>${esc(fmt(prev))}</b></span>`;
     prev = hi;
     return s;
   }).join("");

@@ -30,6 +30,18 @@ def test_bad_reports_blocked(text, reason):
     assert not v.ok and any(r.startswith(reason) for r in v.reasons), v.reasons
 
 
+@pytest.mark.parametrize("text", ["No starch detected. This milk is pure.", "No starch detected. The milk is safe.",
+                                  "No starch was found and it looks completely genuine."])
+def test_bare_safety_and_purity_claims_blocked(text):
+    v = g.check_report(text, PASS, ASSAY)
+    assert not v.ok and "unsupported_safety_claim" in v.reasons
+
+
+def test_negated_purity_is_not_a_safety_claim():
+    v = g.check_report("Starch detected, so this milk is not pure. Sift is 74% confident.", FLAG, ASSAY)
+    assert "unsupported_safety_claim" not in v.reasons
+
+
 def test_pass_report_cannot_claim_detection():
     assert not g.check_report("Starch is present and the milk is adulterated.", PASS, ASSAY).ok
     assert g.check_report("No starch was detected. Sift is 74% confident.", PASS, ASSAY).ok

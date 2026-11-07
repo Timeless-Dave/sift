@@ -29,6 +29,9 @@ BANNED = [
     r"\bdiagnos(e|is|ed)\b",
     r"\bdefinitely\b",
     r"\bno need to (test|check|confirm)\b",
+    # "This milk is pure", "the oil looks safe": a screening test can't establish either.
+    r"\b(is|are|was|looks?|seems?|appears?( to be)?)\s+(perfectly |completely |totally |entirely )?"
+    r"(safe|pure|unadulterated|genuine|authentic)\b",
 ]
 _BANNED_RE = re.compile("|".join(BANNED), re.IGNORECASE)
 _NEGATION = re.compile(r"\b(no|not|none|nothing|without|n't)\b", re.IGNORECASE)

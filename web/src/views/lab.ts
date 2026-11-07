@@ -3,6 +3,11 @@ import { download, esc, getDevice, setDevice } from "../util";
 
 export async function labView(root: HTMLElement, assayId?: string) {
   const assays = (await api.assays()).filter((a) => a.runnable);
+  if (!assays.length) {
+    root.innerHTML = `<section class="panel"><h1>Calibration and runs</h1><p>No test is runnable yet.</p>
+      <p><a href="#/">Back to tests</a></p></section>`;
+    return;
+  }
   const id = assayId && assays.some((a) => a.id === assayId) ? assayId : assays[0].id;
   const assay = await api.assay(id);
   const device = await getDevice();

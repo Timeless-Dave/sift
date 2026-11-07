@@ -1,5 +1,5 @@
 import { API, api, type Assay } from "../api";
-import { esc, getTier } from "../util";
+import { esc, getTier, safeUrl } from "../util";
 
 const methodWords: Record<string, string> = {
   colorimetric: "Colour reaction on the reference card",
@@ -58,6 +58,6 @@ function plannedRow(a: Assay) {
     <span class="food">${esc(a.food)}</span>
     <span class="name">${esc(a.name)}</span>
     <span class="q">${esc(a.summary)}</span>
-    <span class="meta">Based on <a href="${esc(ref.url)}" target="_blank" rel="noopener">${esc(ref.title)}</a></span>
+    <span class="meta">Based on ${safeUrl(ref.url) ? `<a href="${esc(ref.url)}" target="_blank" rel="noopener">${esc(ref.title)}</a>` : esc(ref.title)}</span>
   </li>`;
 }

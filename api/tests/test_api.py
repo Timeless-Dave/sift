@@ -145,3 +145,10 @@ def test_agent_offline_matches_whole_words(client):
     assert step_after("is the photograph next?") == "boil"
     assert step_after("go back", "mix") == "boil"
     assert step_after("retake", "mix") == "photo"
+
+
+def test_agent_turn_checks_tier_and_runnable(client):
+    r = client.post("/v1/agent/turn", json={"assay_id": "milk-starch-iodine", "message": "hi", "tier": "enterprise"})
+    assert r.status_code == 401
+    r = client.post("/v1/agent/turn", json={"assay_id": "honey-pollen-origin", "message": "hi"})
+    assert r.status_code == 409

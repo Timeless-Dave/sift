@@ -13,8 +13,8 @@ import numpy as np
 from ..agent.client import MetaClient, MetaUnavailable
 from ..agent.lab_agent import LabAgent
 from ..core.config import Settings
-from ..core.errors import Conflict, InvalidInput, NotFound, TooLarge
-from ..core.security import sniff_image
+from ..core.errors import Conflict, Forbidden, InvalidInput, NotFound, TooLarge
+from ..core.security import check_pixels, sniff_image
 from ..data.store import PUBLIC, Store
 from ..domain import registry
 from ..vision import card, colorimetric, screenlight
@@ -39,7 +39,11 @@ def _decode(raw: bytes, limit: int) -> np.ndarray:
     if len(raw) > limit:
         raise TooLarge(f"Images must be under {limit // (1024 * 1024)} MB.")
     sniff_image(raw)
-    img = cv2.imdecode(np.frombuffer(raw, np.uint8), cv2.IMREAD_COLOR)
+    check_pixels(raw)
+    try:
+        img = cv2.imdecode(np.frombuffer(raw, np.uint8), cv2.IMREAD_COLOR)
+    except cv2.error as exc:  # OPENCV_IO_MAX_IMAGE_PIXELS (set in sift/__init__.py) refused it
+        raise TooLarge("The photo has too many pixels. Use a photo under 50 megapixels.") from exc
     if img is None:
         raise InvalidInput("The upload isn't a readable image.")
     h, w = img.shape[:2]
@@ -140,6 +144,9 @@ class RunService:
             raise Conflict("Only runs with a result can be validation runs.")
         if self.store.is_calibration_run(run_id):
             raise Conflict("This run is a calibration sample. Validate with a different sample.")
+        if viewer is not None and self.store.run_owner(run_id) != viewer:
+            # Otherwise a key could shift the public accuracy figure without seeing it move.
+            raise Forbidden("An API key can record known answers only on runs made with that key.")
         self.store.set_truth(run_id, value)
         return self.accuracy(registry.get(run["assay_id"]), viewer)
 
