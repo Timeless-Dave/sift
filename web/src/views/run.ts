@@ -9,7 +9,12 @@ export async function runView(root: HTMLElement, assayId: string): Promise<() =>
       <p><a href="#/">Back to tests</a></p></section>`;
     return () => undefined;
   }
-  const steps = assay.protocol!;
+  const steps = assay.protocol ?? [];
+  if (!steps.length) {
+    root.innerHTML = `<section class="panel"><h1>${esc(assay.name)}</h1><p>This test has no steps to follow, so it can't run. Go back and try another test.</p>
+      <p><a href="#/">Back to tests</a></p></section>`;
+    return () => undefined;
+  }
   const tier = getTier();
   const device = await getDevice();
   const history: { role: string; content: string }[] = [];
@@ -71,8 +76,13 @@ export async function runView(root: HTMLElement, assayId: string): Promise<() =>
     } else if (step.capture === "card") {
       stopCapture = cardCapture(card, (jpeg) => submit(() => api.runCard(assay.id, jpeg, device, tier)));
     } else if (step.capture === "screenlight") {
-      stopCapture = screenlightCapture(card, assay.analysis!.sequence!, assay.analysis!.frame_ms ?? 450,
-        (frames) => submit(() => api.runScreenlight(assay.id, frames, device, tier)));
+      const seq = assay.analysis?.sequence;
+      if (!seq?.length) {
+        card.append(el(`<p class="cam-error" role="alert">This test can't run its light scan: the assay data has no colour sequence. Go back to All tests and try another test.</p>`));
+      } else {
+        stopCapture = screenlightCapture(card, seq, assay.analysis?.frame_ms ?? 450,
+          (frames) => submit(() => api.runScreenlight(assay.id, frames, device, tier)));
+      }
     } else if (idx + 1 < steps.length) {
       nav.append(button("Done, next step", "primary", () => show(steps[idx + 1], steps[idx + 1].instruction)));
     }

@@ -100,7 +100,9 @@ export function screenlightCapture(
       const frames: Record<string, number[][]> = {};
       for (const name of sequence) {
         if (cancelled) return;
-        flash.style.background = COLOURS[name] ?? name;
+        const colour = COLOURS[name];
+        if (!colour) continue; // unknown names are never trusted as CSS
+        flash.style.background = colour;
         await wait(180); // let the camera settle on the new light
         const end = performance.now() + Math.max(200, frameMs - 180);
         frames[name] = [];

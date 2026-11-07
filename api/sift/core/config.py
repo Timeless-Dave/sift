@@ -27,6 +27,7 @@ def _int(name: str, default: int) -> int:
 class Limits:
     max_image_bytes: int = field(default_factory=lambda: _int("SIFT_MAX_IMAGE_BYTES", 12 * 1024 * 1024))
     max_audio_bytes: int = field(default_factory=lambda: _int("SIFT_MAX_AUDIO_BYTES", 8 * 1024 * 1024))
+    max_json_bytes: int = field(default_factory=lambda: _int("SIFT_MAX_JSON_BYTES", 2 * 1024 * 1024))
     max_user_text: int = field(default_factory=lambda: _int("SIFT_MAX_USER_TEXT", 500))
     max_history: int = 12
     max_frames_per_colour: int = 60
@@ -35,6 +36,9 @@ class Limits:
     rate_public: int = field(default_factory=lambda: _int("SIFT_RATE_PUBLIC", 30))
     rate_keyed: int = field(default_factory=lambda: _int("SIFT_RATE_KEYED", 240))
     rate_agent: int = field(default_factory=lambda: _int("SIFT_RATE_AGENT", 20))
+    # Cheap read-only catalog calls (assays, health, card). Every page view makes several, and
+    # behind NAT or Docker port forwarding many people can share one address.
+    rate_catalog: int = field(default_factory=lambda: _int("SIFT_RATE_CATALOG", 240))
 
 
 @dataclass(frozen=True)
@@ -57,6 +61,7 @@ class Settings:
     require_api_key: bool = field(default_factory=lambda: _env("SIFT_REQUIRE_KEY", "0") == "1")
     protect_calibration: bool = field(default_factory=lambda: _env("SIFT_PROTECT_CALIBRATION", "0") == "1")
     admin_token: str = field(default_factory=lambda: _env("SIFT_ADMIN_TOKEN"))
+    # When 1, trust X-Forwarded-For only from the Docker-network proxy and rate-limit off its last entry.
     trust_proxy: bool = field(default_factory=lambda: _env("SIFT_TRUST_PROXY", "0") == "1")
     cors_origins: tuple[str, ...] = field(
         default_factory=lambda: tuple(o.strip() for o in _env("SIFT_CORS", "*").split(",") if o.strip())

@@ -22,9 +22,10 @@ def agent_turn(body: AgentTurn, who: Identity = Depends(identity), c: Container 
                         body.tier, c.settings.limits.max_user_text, c.settings.limits.max_history)
 
 
-@router.post("/v1/transcribe", summary="Speech to text for hands-free control")
+@router.post("/v1/transcribe", summary="Speech to text for hands-free control (needs the Meta Model API key)")
 async def transcribe(audio: UploadFile = File(...), who: Identity = Depends(identity),
                      c: Container = Depends(container)) -> dict:
+    """Voice has no offline mode: without a key, or when Meta is unreachable, this answers 503."""
     c.limiter.hit("agent", who.key_prefix or who.ip, c.settings.limits.rate_agent)
     limit = c.settings.limits.max_audio_bytes
     raw = await audio.read(limit + 1)
@@ -37,4 +38,4 @@ async def transcribe(audio: UploadFile = File(...), who: Identity = Depends(iden
         text = await run_in_threadpool(c.client.transcribe, raw, "voice." + mime.split("/")[1], mime)
     except MetaUnavailable as exc:
         raise Unavailable("Voice is unavailable right now. Type your message instead.") from exc
-    return {"text": text[: c.settings.limits.max_user_text]}
+    return {"text": text[: c.settings.limits.max_user_text], "agent": "muse-voice"}

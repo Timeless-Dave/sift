@@ -4,6 +4,11 @@ on:
     branches: [main]
   pull_request:
 
+# Least privilege: CI only reads the repository.
+permissions:
+  contents: read
+
+# Actions are pinned to commit SHAs (tag in the comment); Dependabot proposes bumps.
 jobs:
   api:
     runs-on: ubuntu-latest
@@ -11,15 +16,19 @@ jobs:
       run:
         working-directory: api
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: "3.12"
           cache: pip
-          cache-dependency-path: api/requirements*.txt
-      - run: pip install -r requirements-dev.txt ruff
+          cache-dependency-path: api/requirements*.lock
+      - run: pip install --require-hashes -r requirements-dev.lock
       - run: ruff check .
       - run: python -m pytest -q
+      - name: Audit locked dependencies
+        run: pipx run pip-audit --strict --disable-pip --require-hashes -r requirements.lock
 
   web:
     runs-on: ubuntu-latest
@@ -27,11 +36,35 @@ jobs:
       run:
         working-directory: web
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
           cache: npm
           cache-dependency-path: web/package-lock.json
       - run: npm ci
       - run: npm run build
+      # Everything in package.json is build-time tooling; fail on high or critical advisories.
+      - run: npm audit --audit-level=high
+
+  # The shipped artifacts: both images build, compose resolves, nginx accepts its config.
+  images:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - run: cp api/.env.example api/.env
+      - run: docker compose config --quiet
+      - run: docker compose --profile https config --quiet
+      - run: docker build -t sift-api ./api
+      - run: docker build -t sift-web ./web
+      - name: nginx -t
+        run: docker run --rm --add-host api:127.0.0.1 sift-web nginx -t
+      - name: API boots and answers /health
+        run: |
+          docker run -d --name api -p 8000:8000 --read-only --tmpfs /tmp -e SIFT_CORS=http://localhost sift-api
+          for i in $(seq 1 30); do curl -fsS localhost:8000/health && exit 0; sleep 1; done
+          docker logs api; exit 1

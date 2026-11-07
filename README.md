@@ -14,7 +14,7 @@ Everything in this repository was written during the hackathon, Oct 26 to Nov 4,
 | Lead in turmeric | Rhodizonate lead swab, read against the reference card | Consumer lead swab, printed card |
 | Olive oil purity | Screen-light scan: the screen flashes colours, the front camera records the reflections | A box or hood that blocks room light |
 
-Planned tests (honey origin by pollen, pork in minced beef, urea in milk, milk pH) are in the
+Planned tests (honey origin by pollen, pork in minced beef, urea in milk, milk acidity) are in the
 registry with their source papers and are not runnable yet.
 
 Sift will not:
@@ -26,9 +26,9 @@ Sift will not:
 ## Three tiers, one API
 
 - **Shopper**: guided steps, a plain-language result and how sure Sift is.
-- **Researcher**: practice runs, raw features, per-phone calibration, validation runs that
-  measure accuracy, CSV and JSON export. Operators can set SIFT_PROTECT_CALIBRATION=1 so
-  calibration writes and validation truth need an API key.
+- **Researcher**: practice runs in the app (walk the protocol, nothing is sent or saved), raw features,
+  per-phone calibration, validation runs that measure accuracy, CSV and JSON export. Operators can set
+  SIFT_PROTECT_CALIBRATION=1 so calibration writes and validation truth need an API key.
 - **Developers and organisations**: the same REST API with API keys. See `/docs` on a running server.
 
 ## How a result is produced
@@ -50,12 +50,14 @@ Sift will not:
 
 | Model | Job |
 | --- | --- |
-| Muse Spark (`muse-spark-1.3`) | Lab Agent: guides each protocol step with tool calls (`go_to_step`, `open_camera`, `start_timer`), reviews the rectified card image (`capture_review`), writes the report |
+| Muse Spark (`muse-spark-1.3`) | Lab Agent: guides each protocol step with tool calls (`go_to_step`, `open_camera`, `start_timer`), reviews the rectified card image on passing captures (`capture_review`), writes the report |
 | Muse Voice Transcribe | Hands-free control while your hands are wet or gloved |
 | SAM 3.1 | Segments the sample inside the ring; falls back to Sift's own segmentation if unavailable |
 
 Without `MODEL_API_KEY` the app still works: guidance follows the written protocol and reports
-come from a template. Every response says which one produced it.
+come from a template. Every response says which one produced it. The exception is voice
+transcription, which has no offline mode: without the key `POST /v1/transcribe` answers
+`503`, so type your message instead.
 
 SAM 3.1 segments over the Responses API (`POST /responses`; see the [SAM overview](https://dev.meta.ai/docs/sam/overview)).
 The path stays configurable (`SIFT_SAM_PATH`) in case the API moves.
@@ -82,7 +84,7 @@ api/sift/
   services/   run and calibration orchestration (no HTTP inside)
   agent/      Meta Model API client, Lab Agent, guardrails
   vision/     reference card, quality checks, colorimetric and screen-light analysis
-  domain/     assay registry; one YAML file per test in domain/assays/
+  domain/     assay registry; one YAML entry per test in domain/assays/
   data/       SQLite store (WAL)
   core/       config, errors, logging, security
 ```
@@ -139,14 +141,56 @@ cd web
 npm install
 npm run dev                      # proxies /api to localhost:8000
 
-# Both, as in production
-cp api/.env.example api/.env     # fill it in
+# Both, as in production (localhost only: plain HTTP, bearer tokens in cleartext off localhost)
+cp api/.env.example api/.env     # fill it in; missing file is fine, the defaults run offline
 docker compose up --build        # app on http://localhost:8080
 ```
 
-Phone cameras need HTTPS outside `localhost`. Put the web container behind HTTPS before testing on a phone.
+Phone cameras need HTTPS outside `localhost`. For a phone on the same LAN, run the HTTPS profile:
+
+```bash
+# SIFT_HOST is the address the phone will use: the host's LAN IP
+# (macOS: ipconfig getifaddr en0; Linux: hostname -I | cut -d' ' -f1) or a local DNS name.
+SIFT_HOST=<host-lan-ip> docker compose --profile https up --build -d
+# App on https://<host-lan-ip>:8443 (:8080 still serves plain HTTP for localhost)
+```
+
+The cert comes from Caddy's local CA (`tls internal`). On the phone, either accept the browser warning
+(Advanced / Show Details, visit anyway) or install the root cert for a green lock:
+
+```bash
+docker compose --profile https cp caddy:/data/caddy/pki/authorities/local/root.crt ./caddy-root.crt
+```
+
+Send `caddy-root.crt` to the phone, then:
+
+- iOS: open the file, install the profile, then Settings > General > About > Certificate Trust Settings
+  and enable full trust for the Caddy authority.
+- Android: Settings > Security > Encryption & credentials > Install a certificate > CA certificate,
+  then select the file (exact steps vary by vendor).
+
+How the client IP reaches the rate limiter: browsers on `:8080` talk to nginx directly, and nginx
+ignores any `X-Forwarded-For` they send. Caddy (`:8443`) connects to nginx's internal listener on 8081,
+which is not published and is the only one that takes the client address from `X-Forwarded-For`. nginx
+then passes the API a single address. The API (`SIFT_TRUST_PROXY=1`, set in compose) reads it only
+when the request comes from the Docker network. Leave it `0` when running uvicorn directly. With Docker
+Desktop or Colima on a Mac, port forwarding makes every `:8080` client appear as one address, so they
+share one rate limit; on Linux, and through Caddy, each client is counted separately.
 
 Print `docs/sift-reference-card.svg` at 100% on plain white paper.
+
+### Dependencies
+
+Builds are pinned: the API installs `api/requirements.lock` with `--require-hashes`, the web app uses
+`web/package-lock.json`, base images are pinned by digest, and CI actions by commit SHA. Dependabot
+opens the update PRs. To change an API dependency, edit the range in `requirements.txt` (or
+`requirements-dev.txt`), then regenerate both locks inside the image the API runs on:
+
+```bash
+docker run --rm -v "$PWD/api":/w -w /w python:3.12-slim sh -c "pip install -q pip-tools && \
+  pip-compile -q --generate-hashes --strip-extras --allow-unsafe -o requirements.lock requirements.txt && \
+  pip-compile -q --generate-hashes --strip-extras --allow-unsafe -o requirements-dev.lock requirements-dev.txt"
+```
 
 ## Sources
 

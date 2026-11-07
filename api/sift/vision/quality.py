@@ -59,7 +59,7 @@ def check_card_capture(warped_bgr: np.ndarray, window_mask: np.ndarray, fit_delt
         q.metrics["glare_fraction"] = round(glare, 3)
         if glare > GLARE_MAX:
             q.fail("glare", "Reflections are washing out the sample.", "Tilt the phone slightly or turn off the flash.")
-    elif clipped > CLIPPED_MAX:
+    if clipped > CLIPPED_MAX:
         q.fail("overexposed", "The sample area is overexposed.", "Turn off the flash or move away from direct light.")
     return q
 
@@ -81,6 +81,7 @@ def check_screenlight(frames: dict[str, list[list[float]]], ambient_max: float) 
                "Move the phone closer to the sample and turn screen brightness to maximum.")
     if jitter > 0.04:
         q.fail("movement", "The phone or sample moved during the scan.", "Rest the phone in the hood and scan again.")
+    # Defence in depth: the API rejects missing colours with 422 before this runs. Direct callers still fail here.
     missing = [c for c in ("white", "black") if c not in frames]
     if missing:
         q.fail("incomplete", f"The scan is missing the {', '.join(missing)} frames.", "Run the scan again.")

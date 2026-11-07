@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field
 
@@ -11,13 +11,21 @@ DeviceLabel = Field(default="unknown", min_length=1, max_length=80, pattern=r"^[
 AssayId = Field(min_length=1, max_length=64, pattern=r"^[a-z0-9-]+$")
 
 
+def normalize_device(device: str | None) -> str:
+    """One spelling for device labels: strip whitespace, default to 'unknown'."""
+    return (device or "").strip() or "unknown"
+
+
+ColourFrames = Annotated[list[list[float]], Field(max_length=60)]
+
+
 class ScreenlightRun(BaseModel):
     assay_id: str = AssayId
     device: str = DeviceLabel
     tier: Tier = "public"
     instrument: Literal["phone-screen", "sift-device"] = "phone-screen"
-    frames: dict[str, list[list[float]]] = Field(
-        description="colour name -> list of mean [r, g, b] in 0..1, one per captured frame")
+    frames: dict[str, ColourFrames] = Field(
+        max_length=32, description="colour name -> list of mean [r, g, b] in 0..1, one per captured frame")
 
 
 class Truth(BaseModel):

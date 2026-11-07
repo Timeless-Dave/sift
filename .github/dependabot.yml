@@ -1,0 +1,20 @@
+# Pins (hashed Python locks, image digests, action SHAs) only change through these PRs.
+version: 2
+updates:
+  - package-ecosystem: pip
+    directory: /api
+    schedule: { interval: weekly }
+  - package-ecosystem: npm
+    directory: /web
+    schedule: { interval: weekly }
+    groups:
+      build-tooling: { patterns: ["*"] }
+  - package-ecosystem: docker
+    directories: [/api, /web]
+    schedule: { interval: weekly }
+  - package-ecosystem: docker-compose
+    directory: /
+    schedule: { interval: weekly }
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: { interval: weekly }

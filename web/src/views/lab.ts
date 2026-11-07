@@ -1,5 +1,5 @@
 import { api } from "../api";
-import { download, esc, getDevice, setDevice } from "../util";
+import { csvCell, download, esc, getDevice, setDevice } from "../util";
 
 export async function labView(root: HTMLElement, assayId?: string) {
   const assays = (await api.assays()).filter((a) => a.runnable);
@@ -11,7 +11,9 @@ export async function labView(root: HTMLElement, assayId?: string) {
   const id = assayId && assays.some((a) => a.id === assayId) ? assayId : assays[0].id;
   const assay = await api.assay(id);
   const device = await getDevice();
-  const [cal, runs] = await Promise.all([api.calibration(id, device), api.runs(id)]);
+  const [calRaw, runsRaw] = await Promise.all([api.calibration(id, device), api.runs(id)]);
+  const cal = { ...calRaw, samples: calRaw.samples ?? [] };
+  const runs = Array.isArray(runsRaw) ? runsRaw : [];
 
   root.innerHTML = `
     <section class="lab">
@@ -47,7 +49,7 @@ export async function labView(root: HTMLElement, assayId?: string) {
       <h2>Recent runs</h2>
       ${runs.length ? `<table class="data runs"><thead><tr><th>When</th><th>Phone</th><th>Result</th><th>Known</th></tr></thead><tbody>
         ${runs.map((r) => `<tr><td><a href="#/result/${esc(r.id)}">${new Date(r.created * 1000).toLocaleString()}</a></td>
-          <td>${esc(r.device)}</td><td>${esc(r.result.label ?? r.status)}${r.result.value != null ? ` (${esc(r.result.value)})` : ""}</td>
+          <td>${esc(r.device)}</td><td>${esc(r.result?.label ?? r.status)}${r.result?.value != null ? ` (${esc(r.result.value)})` : ""}</td>
           <td>${r.truth ?? ""}</td></tr>`).join("")}</tbody></table>` : `<p>No runs yet. <a href="#/run/${esc(id)}">Run this test</a>.</p>`}
     </section>`;
 
@@ -64,9 +66,9 @@ export async function labView(root: HTMLElement, assayId?: string) {
   });
   root.querySelector(".csv")!.addEventListener("click", () => {
     const head = "run_id,created,device,status,label,value,unit,confidence,known\n";
-    const body = runs.map((r) => [r.id, new Date(r.created * 1000).toISOString(), r.device, r.status, r.result.label ?? "",
-      r.result.value ?? "", r.result.unit ?? "", r.result.confidence ?? "", r.truth ?? ""]
-      .map((v) => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
+    const body = runs.map((r) => [r.id, new Date(r.created * 1000).toISOString(), r.device, r.status, r.result?.label ?? "",
+      r.result?.value ?? "", r.result?.unit ?? "", r.result?.confidence ?? "", r.truth ?? ""]
+      .map(csvCell).join(",")).join("\n");
     download(`sift-${id}-runs.csv`, head + body, "text/csv");
   });
 }

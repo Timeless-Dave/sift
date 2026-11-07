@@ -3,13 +3,15 @@
 services:
   api:
     build: ./api
-    env_file: ./api/.env
+    env_file:
+      - path: ./api/.env
+        required: false
     environment:
       SIFT_ENV: production
       # Must override the relative dev path in .env: the root filesystem is read-only.
       SIFT_DB: /data/sift.db
       SIFT_TRUST_PROXY: "1"
-      SIFT_CORS: http://localhost:8080
+      SIFT_CORS: ${SIFT_CORS:-http://localhost:8080}
       SIFT_REDIS_URL: redis://redis:6379/0
     volumes:
       - sift-data:/data
@@ -21,7 +23,7 @@ services:
   # Optional rate-limit store: no published port, reachable only by the api service.
   # Persistence is off (limits are ephemeral) so the read-only filesystem is fine.
   redis:
-    image: redis:7-alpine
+    image: redis:7-alpine@sha256:c5d34a98396a4775e223c74e929162c35c5a2182901ba26b50ade939941ce14b
     command: ["redis-server", "--save", "", "--appendonly", "no"]
     read_only: true
     restart: unless-stopped
@@ -34,6 +36,40 @@ services:
       api:
         condition: service_healthy
     restart: unless-stopped
+    read_only: true
+    # nginx runs as a non-root user, so its scratch dirs must be writable by it.
+    tmpfs:
+      - /var/cache/nginx:mode=1777
+      - /var/run:mode=1777
+      - /tmp:mode=1777
+    security_opt: ["no-new-privileges:true"]
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+
+  # Optional HTTPS front end for phones: `docker compose --profile https up`.
+  # Plain `docker compose up` is unchanged (HTTP on :8080 for localhost).
+  caddy:
+    image: caddy:2-alpine@sha256:78bd35025c7ba85961dd149ae670315129954e77abe2383ac47c89106b35ade9
+    profiles: ["https"]
+    ports:
+      - "8443:8443"
+    environment:
+      # The address phones use: the host's LAN IP or DNS name.
+      SIFT_HOST: ${SIFT_HOST:-127.0.0.1}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      web:
+        condition: service_healthy
+    restart: unless-stopped
 
 volumes:
   sift-data:
+  caddy-data:
+  caddy-config:

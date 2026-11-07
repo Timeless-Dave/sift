@@ -1,10 +1,10 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Path, Request
 from fastapi.responses import Response
 
 from ...data.store import PUBLIC
 from ...domain import registry
 from ...vision import card
-from ..deps import Container, container, viewer
+from ..deps import Container, client_ip, container, viewer
 
 router = APIRouter(tags=["assays"])
 
@@ -20,7 +20,8 @@ def list_assays(who: str | None = Depends(viewer), c: Container = Depends(contai
 
 
 @router.get("/v1/assays/{assay_id}", summary="One test with its protocol, method, sources and accuracy")
-def get_assay(assay_id: str, who: str | None = Depends(viewer), c: Container = Depends(container)) -> dict:
+def get_assay(assay_id: str = Path(min_length=1, max_length=64, pattern=r"^[a-z0-9-]+$"),
+              who: str | None = Depends(viewer), c: Container = Depends(container)) -> dict:
     a = registry.get(assay_id)
     out = dict(a) | {"runnable": registry.is_runnable(a)}
     if registry.is_runnable(a):
@@ -30,7 +31,8 @@ def get_assay(assay_id: str, who: str | None = Depends(viewer), c: Container = D
 
 
 @router.get("/v1/card.svg", summary="Printable reference card (print at 100%)")
-def reference_card() -> Response:
+def reference_card(request: Request, c: Container = Depends(container)) -> Response:
+    c.limiter.hit("catalog", client_ip(request, c), c.settings.limits.rate_catalog)
     return Response(card.card_svg(), media_type="image/svg+xml",
                     headers={"Content-Disposition": 'inline; filename="sift-reference-card.svg"',
                              "Cache-Control": "public, max-age=86400"})
