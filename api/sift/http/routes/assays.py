@@ -1,10 +1,10 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import Response
 
 from ...data.store import PUBLIC
 from ...domain import registry
 from ...vision import card
-from ..deps import Container, container, viewer
+from ..deps import Container, client_ip, container, viewer
 
 router = APIRouter(tags=["assays"])
 
@@ -30,7 +30,8 @@ def get_assay(assay_id: str, who: str | None = Depends(viewer), c: Container = D
 
 
 @router.get("/v1/card.svg", summary="Printable reference card (print at 100%)")
-def reference_card() -> Response:
+def reference_card(request: Request, c: Container = Depends(container)) -> Response:
+    c.limiter.hit("api", client_ip(request, c), c.settings.limits.rate_public)
     return Response(card.card_svg(), media_type="image/svg+xml",
                     headers={"Content-Disposition": 'inline; filename="sift-reference-card.svg"',
                              "Cache-Control": "public, max-age=86400"})

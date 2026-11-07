@@ -7,10 +7,12 @@ from __future__ import annotations
 
 import numpy as np
 from sklearn.cross_decomposition import PLSRegression
-from sklearn.model_selection import LeaveOneOut, cross_val_predict
+from sklearn.model_selection import KFold, LeaveOneOut, cross_val_predict
 
 from .colorimetric import band_for
 from .quality import check_screenlight
+
+MAX_LOO_SAMPLES = 200
 
 
 def vectorize(frames: dict[str, list[list[float]]], sequence: list[str]) -> list[float]:
@@ -34,10 +36,14 @@ def train(samples: list[dict]) -> tuple[dict, dict]:
     y = np.array([s["known_value"] for s in samples], float)
     if len(samples) < 6 or len(set(y)) < 3:
         raise ValueError("Training needs at least 6 scans across 3 or more known levels.")
+    if len(samples) > MAX_LOO_SAMPLES:
+        cv, validation = KFold(n_splits=5, shuffle=True, random_state=0), "5-fold cross-validation"
+    else:
+        cv, validation = LeaveOneOut(), "leave-one-out cross-validation"
     n_comp = int(min(5, X.shape[1], len(samples) - 2))
     best = None
     for k in range(1, n_comp + 1):
-        pred = cross_val_predict(PLSRegression(n_components=k, scale=True), X, y, cv=LeaveOneOut()).ravel()
+        pred = cross_val_predict(PLSRegression(n_components=k, scale=True), X, y, cv=cv).ravel()
         rmse = float(np.sqrt(np.mean((pred - y) ** 2)))
         if best is None or rmse < best[1]:
             best = (k, rmse, pred)
@@ -54,8 +60,7 @@ def train(samples: list[dict]) -> tuple[dict, dict]:
         "y_min": float(y.min()), "y_max": float(y.max()), "rmse_cv": rmse,
     }
     metrics = {"components": k, "samples": len(samples), "levels": len(set(y)),
-               "rmse_cv": round(rmse, 3), "r2_cv": round(1 - ss_res / ss_tot, 3),
-               "validation": "leave-one-out cross-validation"}
+               "rmse_cv": round(rmse, 3), "r2_cv": round(1 - ss_res / ss_tot, 3), "validation": validation}
     return payload, metrics
 
 

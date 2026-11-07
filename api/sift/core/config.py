@@ -27,6 +27,7 @@ def _int(name: str, default: int) -> int:
 class Limits:
     max_image_bytes: int = field(default_factory=lambda: _int("SIFT_MAX_IMAGE_BYTES", 12 * 1024 * 1024))
     max_audio_bytes: int = field(default_factory=lambda: _int("SIFT_MAX_AUDIO_BYTES", 8 * 1024 * 1024))
+    max_json_bytes: int = field(default_factory=lambda: _int("SIFT_MAX_JSON_BYTES", 2 * 1024 * 1024))
     max_user_text: int = field(default_factory=lambda: _int("SIFT_MAX_USER_TEXT", 500))
     max_history: int = 12
     max_frames_per_colour: int = 60

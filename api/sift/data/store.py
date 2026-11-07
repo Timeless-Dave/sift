@@ -169,6 +169,14 @@ class Store:
             ).fetchall()
         return [{**dict(r), "features": json.loads(r["features"])} for r in rows]
 
+    def count_samples(self, assay_id: str, device: str, owner: str = PUBLIC) -> int:
+        with self._conn() as c:
+            row = c.execute(
+                "SELECT COUNT(*) AS n FROM calibration_samples WHERE assay_id=? AND device=? AND owner=?",
+                (assay_id, device, owner),
+            ).fetchone()
+        return int(row["n"])
+
     def save_model(self, assay_id: str, device: str, kind: str, payload: dict, metrics: dict,
                    owner: str = PUBLIC) -> None:
         with self._conn() as c:

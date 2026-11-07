@@ -21,6 +21,7 @@ from ..vision import card, colorimetric, screenlight
 
 log = logging.getLogger("sift.runs")
 MAX_EDGE = 2000
+MAX_SAMPLES = 500
 
 
 @dataclass
@@ -186,6 +187,9 @@ class CalibrationService:
             feats = feats[assay["analysis"]["feature"]]
         device = run["device"] or "unknown"
         owner = viewer or PUBLIC
+        if self.store.count_samples(run["assay_id"], device, owner) >= MAX_SAMPLES:
+            raise Conflict(f"This phone already has {MAX_SAMPLES} calibration samples for this test. "
+                           "Train a model with the samples you have.")
         self.store.add_sample(run["assay_id"], device, known, feats, note[:200], owner=owner, run_id=run_id)
         return len(self.store.samples(run["assay_id"], device, owner))
 

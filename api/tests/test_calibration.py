@@ -143,3 +143,13 @@ def test_key_cannot_label_public_runs(make_client):
     public = post_card(c).json()["run_id"]
     assert c.post(f"/v1/runs/{public}/truth", json={"value": 0}, headers={"X-Sift-Key": key}).status_code == 403
     assert c.get("/v1/assays/milk-starch-iodine").json()["accuracy"]["n"] == 0
+
+
+def test_sample_cap_rejects_past_limit(client, monkeypatch):
+    import sift.services.runs as runs_mod
+    monkeypatch.setattr(runs_mod, "MAX_SAMPLES", 2)
+    ids = [post_card(client).json()["run_id"] for _ in range(3)]
+    assert client.post("/v1/calibration/samples", json={"run_id": ids[0], "known_value": 1}).status_code == 200
+    assert client.post("/v1/calibration/samples", json={"run_id": ids[1], "known_value": 1}).status_code == 200
+    r = client.post("/v1/calibration/samples", json={"run_id": ids[2], "known_value": 1})
+    assert r.status_code == 409 and "already has 2" in r.json()["error"]["message"]

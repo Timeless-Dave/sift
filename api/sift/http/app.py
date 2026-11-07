@@ -15,7 +15,7 @@ from .. import __version__
 from ..core.config import Settings, get_settings
 from ..core.errors import SiftError
 from ..core.logging import request_id, setup_logging
-from .deps import Container
+from .deps import Container, client_ip
 from .routes import admin, agent, assays, calibration, runs
 
 log = logging.getLogger("sift.http")
@@ -54,6 +54,20 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         token = request_id.set(rid)
         start = time.perf_counter()
         try:
+            if request.headers.get("content-type", "").split(";")[0].strip() == "application/json":
+                raw_len = request.headers.get("content-length", "").strip()
+                if raw_len.isdigit() and int(raw_len) > settings.limits.max_json_bytes:
+                    mb = settings.limits.max_json_bytes / (1024 * 1024)
+                    response = _error(413, "too_large",
+                                      f"JSON bodies must be under {mb:g} MB. Send fewer frames per colour.")
+                    response.headers["X-Request-ID"] = rid
+                    for k, v in SECURITY_HEADERS.items():
+                        response.headers.setdefault(k, v)
+                    log.info("request", extra={"fields": {
+                        "rid": rid, "method": request.method, "path": request.url.path,
+                        "status": response.status_code,
+                        "ms": round((time.perf_counter() - start) * 1000, 1)}})
+                    return response
             response = await call_next(request)
         finally:
             request_id.reset(token)
@@ -83,8 +97,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                       "Something went wrong on the Sift server. Quote the request id if you report it.")
 
     @app.get("/health", tags=["meta"])
-    def health() -> dict:
+    def health(request: Request) -> dict:
         c: Container = app.state.container
+        c.limiter.hit("api", client_ip(request, c), c.settings.limits.rate_public)
         return {"ok": True, "version": __version__, "agent": "muse-spark" if c.client.online else "offline",
                 "chat_model": settings.chat_model}
 
