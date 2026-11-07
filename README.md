@@ -6,6 +6,31 @@ reference scans of genuine and adulterated samples, and says only what the evide
 
 Built for the Meta Global AI Developer Hackathon 2026 (Indie track, theme: Push the Frontier).
 
+## Status
+
+The scanner pipeline works end to end, from sensors to answer. It has been tested in Chrome with
+emulated camera and microphone, and against the live Meta and Open Food Facts APIs.
+
+**Sift has no reference scans of real food yet.** Until it does, every scan answers "no verdict
+yet", and Sift has no measured accuracy on real food. The next step is building the reference
+library on real phones (see [Add reference scans](#add-reference-scans)).
+
+Sensor thresholds (torch, sound, bubble) are first estimates, to be tuned once real scans exist.
+
+## Phones
+
+Sift is a web app (PWA). Android Chrome supports every sensor. Browsers on other platforms expose
+less, and Sift skips what it can't use, telling you which sensors it ran:
+
+| Sensor | Android Chrome | iPhone Safari | Desktop |
+| --- | --- | --- | --- |
+| Light sweep, sound sweep, bubble rise | yes | yes | yes, with a camera and mic |
+| Torch, light through tissue | yes | no (no torch control) | no |
+| Vibration | yes | no | no |
+| Barcode | yes | no (pick the food or use "What is this?") | some |
+
+The camera and microphone need HTTPS, except on `localhost`. See [Run it](#run-it).
+
 ## How a scan works
 
 1. **What is it?** Point the camera at the barcode (looked up on Open Food Facts) or the food
@@ -49,10 +74,31 @@ lab spectroscopy results don't transfer to phones.
 
 ## The reference library
 
-Sift's verdicts come from reference scans, not from borrowed accuracy figures. In Researcher mode,
-any scan of a sample whose answer you know (genuine, adulterated, cultivated, conventional) can be
-added to the library for that food and phone model. API keys get their own private library. Set
-`SIFT_PROTECT_CALIBRATION=1` to require a key for reference scans.
+Sift's verdicts come from reference scans, not from borrowed accuracy figures. A reference scan is a
+scan of a sample whose answer you know. References are kept per food and per phone model, because
+phone cameras, screens and speakers differ.
+
+- **Match results** (matches / doesn't match) need at least 5 genuine references for that food on
+  that phone model.
+- **A per-question verdict** (for example, syrup in honey) needs a model that reaches at least 80%
+  cross-validated accuracy on at least 20 labelled scans.
+- **Lab-grown vs conventional meat** stays research whatever the data, until a model passes validation.
+
+API keys get their own private library. Set `SIFT_PROTECT_CALIBRATION=1` to require a key for
+reference scans.
+
+### Add reference scans
+
+1. Open the app on the phone and turn on **Researcher** (top right).
+2. Choose the food and tick **Add as a reference scan**.
+3. Pick the label (**genuine**, **adulterated**, **conventional** or **cultivated**) and note what
+   the sample is, e.g. "20% rice syrup, mixed by weight".
+4. Scan. The result shows how many genuine references that phone model now has.
+
+Use samples you can vouch for. Buy genuine products from sources you trust, and make adulterated
+ones yourself at known levels. Scan each sample several times, from more than one bottle or cut if
+you can. Keep some known samples back and run them as normal scans later. That's how accuracy gets
+measured honestly.
 
 ## Lab tests
 
@@ -74,12 +120,35 @@ everything except voice keeps working, and each response says which path produce
 
 ## Accuracy
 
-Sift reports accuracy only from validation runs with known answers, per test and per phone
-(`accuracy.by_device`). No accuracy figure in this repo is borrowed from the papers it cites.
+No accuracy figure in this repo is borrowed from the papers it cites. The published results in
+`docs/research.md` show what a method can do on its own hardware; Sift has to measure its own.
 
-A run can be a calibration sample or a validation run, never both, so a model is never scored
-on the samples it was trained on. The unit tests run on
-synthetic card images and check the arithmetic, not real-world accuracy.
+- **Scans.** Matching thresholds come from leave-one-out distances within the genuine references.
+  Target models report their cross-validated accuracy and training size with every finding. Neither
+  figure exists until there are reference scans.
+- **Lab tests.** Accuracy comes only from validation runs with known answers, per test and per phone
+  (`accuracy.by_device`). A run can be a calibration sample or a validation run, never both, so a
+  model is never scored on the samples it was trained on.
+
+The automated tests use synthetic captures and card images. They check the arithmetic and the
+honesty rules, not real-world accuracy.
+
+## API
+
+The app uses the same REST API that developers and organisations get. API keys (`X-Sift-Key`) keep a
+key's scans, references and models private. Interactive docs are at `/docs` on a running server.
+
+| Endpoint | What it does |
+| --- | --- |
+| `GET /v1/foods`, `GET /v1/foods/{id}` | Food profiles: sensors, how to hold the phone, questions with status and sources, reference counts |
+| `POST /v1/scans` | Check a capture against the reference library, or store a reference scan (`mode: "reference"`) |
+| `GET /v1/scans`, `GET /v1/scans/{id}` | Recent scans and one scan |
+| `POST /v1/identify` | Name the food in a camera frame (Muse vision) |
+| `GET /v1/products/{barcode}` | Look a barcode up on Open Food Facts and map it to a food |
+| `/v1/assays`, `/v1/runs`, `/v1/calibration`, `/v1/agent/turn`, `/v1/transcribe`, `/v1/card.svg` | Lab tests |
+
+The scan wire format and the honesty rules are in `docs/scanner.md`. The phone computes features
+from its sensors, so a capture is a few kilobytes of numbers, never images or audio.
 
 ## Architecture
 
@@ -103,6 +172,12 @@ api/sift/
 
 ## Guardrails
 
+**On answers.** No verdict without evidence: a match needs 5 genuine references from the same
+phone model, and a per-question verdict needs a validated model. Reports never call food safe,
+pure, genuine or fake. "Doesn't match" names the likely causes and says it is not proof of
+adulteration. Scans that moved too much, or where a sensor couldn't see or hear the food, are
+rejected or downgraded with the fix.
+
 **On the model.** Code measures and Muse Spark explains. Every report the model writes is checked
 before it reaches a user. A report that fails any check is replaced by the deterministic template,
 and the response records why (`report.fallback`, `report.guardrail`). A report fails if it:
@@ -118,12 +193,15 @@ a minute after repeated failures, so an outage degrades to offline guidance inst
 
 **On requests.**
 - Uploads are checked by file signature, size and pixel count (decompression-bomb cap).
-- Screen-light frames are checked for colour names, frame counts and value ranges.
+- Scan captures are schema-checked: value ranges, array lengths, finite numbers. JSON bodies are
+  capped before parsing.
 - Ids and device labels are pattern-checked.
-- API keys are stored as SHA-256 hashes and can be revoked. Runs made with a key are visible only to that key.
-- Calibration samples, trained models and accuracy figures belong to the key that made them. A key's model
-  never reads public runs, and public calibration never reaches a key's runs.
-- Set SIFT_PROTECT_CALIBRATION=1 to require an API key for calibration writes and validation truth; reads stay open.
+- API keys are stored as SHA-256 hashes and can be revoked. Scans and runs made with a key are visible
+  only to that key.
+- Reference scans, calibration samples, trained models and accuracy figures belong to the key that made
+  them. A key's library never reads public scans, and the public library never reaches a key's scans.
+- Set `SIFT_PROTECT_CALIBRATION=1` to require an API key for reference scans, calibration writes and
+  validation truth; reads stay open.
 - The enterprise tier requires a key.
 - Admin calls use a constant-time token check.
 - Rate limits apply per IP or key, with a stricter limit on agent and voice calls.
@@ -151,12 +229,16 @@ uvicorn sift.main:app --reload --port 8000
 # App
 cd web
 npm install
+npm test && npm run build        # sensor DSP tests, type check, bundle
 npm run dev                      # proxies /api to localhost:8000
 
 # Both, as in production (localhost only: plain HTTP, bearer tokens in cleartext off localhost)
 cp api/.env.example api/.env     # fill it in; missing file is fine, the defaults run offline
 docker compose up --build        # app on http://localhost:8080
 ```
+
+On a Mac without Docker Desktop, Colima works: `brew install colima docker docker-compose`, then
+`colima start`.
 
 Phone cameras need HTTPS outside `localhost`. For a phone on the same LAN, run the HTTPS profile:
 
@@ -189,7 +271,7 @@ when the request comes from the Docker network. Leave it `0` when running uvicor
 Desktop or Colima on a Mac, port forwarding makes every `:8080` client appear as one address, so they
 share one rate limit; on Linux, and through Caddy, each client is counted separately.
 
-Print `docs/sift-reference-card.svg` at 100% on plain white paper.
+For the lab tests, print `docs/sift-reference-card.svg` at 100% on plain white paper.
 
 ### Dependencies
 
@@ -206,12 +288,17 @@ docker run --rm -v "$PWD/api":/w -w /w python:3.12-slim sh -c "pip install -q pi
 
 ## Sources
 
-- Song et al., [Quantification of extra virgin olive oil adulteration using smartphone videos](https://pure.ulster.ac.uk/en/publications/07a2fdf5-cbb8-49c2-8d5a-921f26f0711b), Ulster University
-- Song et al., [Smartphone detection of minced beef adulteration](https://pure.ulster.ac.uk/en/publications/smartphone-detection-of-minced-beef-adulteration/), Microchemical Journal 2021
-- Costa et al., [Quantification of milk adulterants using colorimetric assays and smartphone image analysis](https://clok.uclan.ac.uk/33253), Microchemical Journal 2020
-- FSSAI, [Detect Adulteration with Rapid Test (DART)](https://www.fssai.gov.in/book-details.php?bkid=201)
-- Stanford, [Lead chromate found in turmeric](https://news.stanford.edu/2019/09/24/lead-found-turmeric/)
-- UK FSA, [Review of analytical methods for cell-cultivated products](https://science.food.gov.uk/article/167297-review-of-analytical-methods-for-cell-cultivated-products)
+`docs/research.md` is the full evidence review: every source, what it shows, how a phone can use it,
+and whether we could read the full text. `docs/foods-evidence.md` covers each food. The key sources:
+
+- Sun et al., [Detecting Counterfeit Liquid Food Products in a Sealed Bottle Using a Smartphone Camera](https://doi.org/10.1145/3498361.3539776) (LiquidHash), MobiSys 2022. The basis of bubble rise.
+- Song et al., [Quantification of extra virgin olive oil adulteration using smartphone videos](https://pure.ulster.ac.uk/en/publications/quantification-of-extra-virgin-olive-oil-adulteration-using-smart/), Talanta 2020, and [Smartphone detection of minced beef adulteration](https://pure.ulster.ac.uk/en/publications/smartphone-detection-of-minced-beef-adulteration), Microchemical Journal 2021. The basis of the light sweep.
+- Huang, [Smartphone-Based Identification of Unknown Liquids via Active Vibration Sensing](https://arxiv.org/html/2603.28787v1), arXiv 2026.
+- Fengou et al., [Detection of Meat Adulteration Using Spectroscopy-Based Sensors](https://pmc.ncbi.nlm.nih.gov/articles/PMC8071343/), Foods 2021. Why Sift screens rather than quantifies.
+- Chaudhary et al., [Spectroscopic techniques for authentication of animal origin foods](https://pmc.ncbi.nlm.nih.gov/articles/PMC9531581/), Front Nutr 2022.
+- Juric & Žalik, [Near-infrared spectroscopy using a standard mobile device for vein visualisation](https://doi.org/10.1186/s12911-014-0100-z), BMC Med Inform Decis Mak 2014. The principle behind light through tissue.
+- UK FSA, [Review of analytical methods for cell-cultivated products](https://science.food.gov.uk/article/167297-review-of-analytical-methods-for-cell-cultivated-products), 2026.
+- Lab tests: Costa et al., [milk adulterants by smartphone colorimetry](https://clok.uclan.ac.uk/33253), Microchemical Journal 2020; FSSAI, [DART](https://www.fssai.gov.in/book-details.php?bkid=201); Stanford, [lead chromate in turmeric](https://news.stanford.edu/2019/09/24/lead-found-turmeric/).
 
 ## Licence
 
