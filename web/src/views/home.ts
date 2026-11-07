@@ -53,11 +53,14 @@ function row(a: Assay, research: boolean) {
 }
 
 function plannedRow(a: Assay) {
-  const ref = a.references[0];
+  const ref = a.references?.[0];
+  const based = ref
+    ? `Based on ${safeUrl(ref.url) ? `<a href="${esc(ref.url)}" target="_blank" rel="noopener">${esc(ref.title)}</a>` : esc(ref.title)}`
+    : "Based on published research";
   return `<li class="assay quiet">
     <span class="food">${esc(a.food)}</span>
     <span class="name">${esc(a.name)}</span>
     <span class="q">${esc(a.summary)}</span>
-    <span class="meta">Based on ${safeUrl(ref.url) ? `<a href="${esc(ref.url)}" target="_blank" rel="noopener">${esc(ref.title)}</a>` : esc(ref.title)}</span>
+    <span class="meta">${based}</span>
   </li>`;
 }

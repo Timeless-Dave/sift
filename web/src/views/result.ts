@@ -63,7 +63,11 @@ function scale(r: RunResult, assay: Assay) {
     <p class="unit">${esc(r.unit)}</p>`;
 }
 
-const fmt = (n: number) => (Math.abs(n) >= 10 ? n.toFixed(0) : n.toFixed(2).replace(/\.?0+$/, ""));
+const fmt = (n: unknown) => {
+  const v = Number(n);
+  if (!Number.isFinite(v)) return "–";
+  return Math.abs(v) >= 10 ? v.toFixed(0) : v.toFixed(2).replace(/\.?0+$/, "");
+};
 
 function problems(r: RunResult) {
   const list = r.quality?.problems ?? [];

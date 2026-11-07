@@ -38,6 +38,12 @@ export function esc(s: unknown): string {
 /** Only http(s) links from API data become anchors; anything else renders as text. */
 export const safeUrl = (u: unknown) => (typeof u === "string" && /^https?:\/\//i.test(u) ? u : "");
 
+/** Quote a CSV cell and defuse spreadsheet formulas: a leading = + - @ gets a ' prefix. */
+export const csvCell = (v: unknown) => {
+  const s = String(v ?? "");
+  return `"${(/^[=+\-@]/.test(s) ? "'" : "") + s.replace(/"/g, '""')}"`;
+};
+
 export function el<T extends HTMLElement = HTMLElement>(html: string): T {
   const t = document.createElement("template");
   t.innerHTML = html.trim();
