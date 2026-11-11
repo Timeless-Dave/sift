@@ -34,11 +34,6 @@ export default defineConfig({
             handler: "StaleWhileRevalidate",
             options: { cacheName: "assays" },
           },
-          {
-            urlPattern: ({ url }) => url.origin.includes("fonts."),
-            handler: "CacheFirst",
-            options: { cacheName: "fonts" },
-          },
         ],
       },
     }),
