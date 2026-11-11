@@ -8,7 +8,9 @@ import { scanApi, type Food } from "../api";
 import { SensorGlyph } from "../components/SensorGlyph";
 import { Spectrum } from "../components/Spectrum";
 import { SENSOR_INFO, available, scanFood, type ScanStage } from "../scanner";
+import { primeAudio } from "../sensors/acoustic";
 import { detectBarcode, support as barcodeSupport } from "../sensors/barcode";
+import { close as closeCamera, openRearCamera, setTorch, type RearCamera } from "../sensors/camera";
 import { requestMotionPermission } from "../sensors/motion";
 import type { ReferenceLabel } from "../sensors/types";
 import { getDevice, getTier, setTier, type Tier } from "../util";
@@ -35,7 +37,9 @@ export default function Scan() {
   const [loadError, setLoadError] = useState("");
 
   const videoRef = useRef<HTMLVideoElement>(null);
-  const streamRef = useRef<MediaStream | null>(null);
+  const camRef = useRef<RearCamera | null>(null);
+  const [torchAvailable, setTorchAvailable] = useState(false);
+  const [torchOn, setTorchOn] = useState(false);
   const barcodeRef = useRef("");
   const abortRef = useRef<AbortController | null>(null);
 
@@ -50,8 +54,9 @@ export default function Scan() {
   }, []);
 
   const stopCamera = useCallback(() => {
-    streamRef.current?.getTracks().forEach((t) => t.stop());
-    streamRef.current = null;
+    closeCamera(camRef.current);   // stopping the track also switches the torch off
+    camRef.current = null;
+    setTorchOn(false); setTorchAvailable(false);
     setCamera((c) => (c === "live" ? "idle" : c));
   }, []);
 
@@ -78,15 +83,26 @@ export default function Scan() {
 
   async function startCamera() {
     try {
-      const s = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" } }, audio: false });
-      streamRef.current = s;
-      if (videoRef.current) { videoRef.current.srcObject = s; await videoRef.current.play(); }
+      // The lens with the flash is also the main lens, which focuses best on barcodes.
+      const cam = await openRearCamera({ needTorch: true });
+      camRef.current = cam;
+      if (videoRef.current) { videoRef.current.srcObject = cam.stream; await videoRef.current.play(); }
+      setTorchAvailable(cam.torch);
       setCamera("live");
       setStatus(barcodeSupport().available ? "Point at the barcode, or tap “What is this?”" : "Tap “What is this?” or choose the food.");
     } catch (e) {
       setCamera("denied");
       setStatus(`${(e as Error).message || "The camera is unavailable."} Choose the food instead.`);
     }
+  }
+
+  async function toggleTorch() {
+    const cam = camRef.current;
+    if (!cam) return;
+    const want = !torchOn;
+    const ok = await setTorch(cam.track, want);
+    if (ok) setTorchOn(want);
+    else setStatus(want ? "The torch didn't turn on. Another app may be using it." : "The torch didn't switch off.");
   }
 
   async function identify() {
@@ -114,7 +130,12 @@ export default function Scan() {
 
   async function runScan() {
     if (!food) return;
-    await requestMotionPermission().catch(() => undefined); // iOS needs this inside the tap
+    // Everything that needs the tap's user activation starts synchronously, before any await:
+    // fullscreen for the whole scan, the audio unlock for the sound sweep, and motion permission (iOS).
+    const fullscreen = document.fullscreenElement ? null : document.documentElement.requestFullscreen?.().catch(() => undefined);
+    primeAudio();
+    const motion = requestMotionPermission().catch(() => undefined);
+    await Promise.all([fullscreen, motion]);
     stopCamera();
     const ctrl = new AbortController();
     abortRef.current = ctrl;
@@ -151,6 +172,7 @@ export default function Scan() {
       setStatus((e as Error).name === "AbortError" ? "Scan cancelled." : (e as Error).message);
     } finally {
       abortRef.current = null; setStage(null);
+      if (document.fullscreenElement === document.documentElement) await document.exitFullscreen().catch(() => undefined);
     }
   }
 
@@ -169,6 +191,15 @@ export default function Scan() {
       <section className={`viewfinder ${camera}`} aria-label="Camera">
         <video ref={videoRef} playsInline muted />
         <div className="reticle" aria-hidden="true"><i /><i /><i /><i /></div>
+        {camera === "live" && torchAvailable && (
+          <button type="button" className={`torch-btn ${torchOn ? "on" : ""}`} aria-pressed={torchOn} onClick={toggleTorch}
+            aria-label={torchOn ? "Turn the torch off" : "Turn the torch on"}>
+            <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.6"
+              strokeLinecap="round" strokeLinejoin="round"><path d="M8 3h8l-1 5H9z" /><path d="M9 8h6v4l-1 9h-4l-1-9z" />
+              {torchOn && <path d="M4 5l2 1M20 5l-2 1M12 0.5v1.5" />}</svg>
+            {torchOn ? "On" : "Torch"}
+          </button>
+        )}
         {camera !== "live" && (
           <button type="button" className="start" onClick={startCamera}>
             <Spectrum className="big" live />

@@ -6,6 +6,7 @@
  */
 import { captureAcoustic, support as acousticSupport } from "./acoustic";
 import { captureBubble, support as bubbleSupport } from "./bubble";
+import { TorchUnavailableError } from "./camera";
 import { captureContact, support as contactSupport } from "./contact";
 import { captureScreenlight, STANDARD_SEQUENCE, support as screenlightSupport } from "./screenlight";
 import { captureTorch, support as torchSupport } from "./torch";
@@ -52,27 +53,36 @@ export async function runScan(modalities: Modality[], opts: ScanOptions = {}): P
   let monitor: MotionMonitor | null = null;
   let motion: MotionCapture | null = null;
   let motionSamples = 0;
+  const failures: Error[] = [];
   try {
-    if (modalities.includes("motion") && sup.motion.available) monitor = startMotionMonitor();
+    // The stillness monitor is a quality gate for every scan, not a modality a food opts into.
+    if (sup.motion.available) monitor = startMotionMonitor();
     for (const modality of MODALITY_ORDER) {
       if (!modalities.includes(modality) || !sup[modality].available) continue;
       signal?.throwIfAborted();
       onProgress?.(modality, 0);
       const forward = (fraction: number) => onProgress?.(modality, fraction);
-      if (modality === "screenlight") {
-        capture.screenlight = await captureScreenlight({
-          sequence: screenSequence, frameMs, signal, onProgress: forward,
-        });
-      } else if (modality === "torch") {
-        capture.torch = await captureTorch({ signal, onProgress: forward });
-      } else if (modality === "contact") {
-        capture.contact = await captureContact({ signal, onProgress: forward });
-      } else if (modality === "bubble") {
-        capture.bubble = await captureBubble({ signal, onProgress: forward });
-      } else if (modality === "acoustic") {
-        capture.acoustic = await captureAcoustic({ signal, onProgress: forward });
-      } else if (modality === "vibration") {
-        capture.vibration = await captureVibration({ signal, onProgress: forward });
+      // One sensor failing (no motion data, a torch the browser can't switch) shouldn't sink the
+      // others: skip it and keep going. If nothing at all ran, the first failure is reported.
+      try {
+        if (modality === "screenlight") {
+          capture.screenlight = await captureScreenlight({ sequence: screenSequence, frameMs, signal, onProgress: forward });
+        } else if (modality === "torch") {
+          capture.torch = await captureTorch({ signal, onProgress: forward });
+        } else if (modality === "contact") {
+          capture.contact = await captureContact({ signal, onProgress: forward });
+        } else if (modality === "bubble") {
+          capture.bubble = await captureBubble({ signal, onProgress: forward });
+        } else if (modality === "acoustic") {
+          capture.acoustic = await captureAcoustic({ signal, onProgress: forward });
+        } else if (modality === "vibration") {
+          capture.vibration = await captureVibration({ signal, onProgress: forward });
+        }
+      } catch (e) {
+        if (signal?.aborted || (e as Error).name === "AbortError") throw e;
+        failures.push(e as Error);
+        onProgress?.(modality, 1, e instanceof TorchUnavailableError ? e.message : `Skipped: ${(e as Error).message}`);
+        continue;
       }
       onProgress?.(modality, 1);
     }
@@ -87,7 +97,7 @@ export async function runScan(modalities: Modality[], opts: ScanOptions = {}): P
   const ran = capture.screenlight ?? capture.torch ?? capture.contact ?? capture.bubble ?? capture.acoustic ??
     capture.vibration;
   if (!ran) {
-    throw new Error("None of the requested sensors can run on this phone. Try a phone with a camera and microphone.");
+    throw failures[0] ?? new Error("None of the requested sensors can run on this phone. Try a phone with a camera and microphone.");
   }
   return capture;
 }

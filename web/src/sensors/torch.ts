@@ -10,6 +10,7 @@ import {
   rgbStatsFromAccumulator,
   type RgbAccumulator,
 } from "./dsp";
+import { close, openRearCamera, setTorch, type RearCamera } from "./camera";
 import type { SensorSupport, TorchCapture } from "./types";
 
 /** Frames pooled per torch state; small enough to stay fast, enough to average noise. */
@@ -39,58 +40,29 @@ export async function captureTorch(opts: TorchOptions = {}): Promise<TorchCaptur
   const sup = support();
   if (!sup.available) throw new Error(sup.reason ?? "The camera isn't available.");
 
-  let stream: MediaStream | null = null;
-  let video: HTMLVideoElement | null = null;
+  let cam: RearCamera | null = null;
   let torchOn = false;
-  const releaseTorch = async (track: MediaStreamTrack | undefined) => {
-    if (torchOn && track) {
-      torchOn = false;
-      try {
-        await track.applyConstraints({ advanced: [{ torch: false } as MediaTrackConstraintSet] });
-      } catch { /* best effort */ }
-    }
-  };
   try {
     try {
-      stream = await navigator.mediaDevices.getUserMedia({
-        audio: false,
-        video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } },
-      });
-    } catch {
+      cam = await openRearCamera({ needTorch: true, signal });
+    } catch (e) {
       throwIfAborted(signal);
-      throw new Error("The rear camera didn't open. Allow camera access and try again.");
+      throw new Error((e as Error).message?.startsWith("The camera") ? (e as Error).message
+        : "The rear camera didn't open. Allow camera access and try again.");
     }
-    const track = stream.getVideoTracks()[0];
-    if (!track) throw new Error("The rear camera didn't open. Allow camera access and try again.");
+    const { track, video } = cam;
     // Lock exposure and white balance where allowed, so off/on frames are comparable.
     try {
       const lock = { exposureMode: "manual", whiteBalanceMode: "manual" } as MediaTrackConstraintSet;
       await track.applyConstraints({ advanced: [lock] });
     } catch { /* unsupported */ }
-    let torchSupported = false;
-    try {
-      const caps = track.getCapabilities?.() as (MediaTrackCapabilities & { torch?: boolean }) | undefined;
-      torchSupported = caps?.torch === true;
-    } catch { /* assume unsupported */ }
-
-    video = document.createElement("video");
-    video.playsInline = true;
-    video.muted = true;
-    video.srcObject = stream;
-    try {
-      await video.play();
-    } catch {
-      throwIfAborted(signal);
-      throw new Error("The camera preview didn't start. Close other apps using the camera and try again.");
-    }
-    await waitForVideo(video, signal);
 
     const canvas = document.createElement("canvas");
     canvas.width = 96; canvas.height = 72;
     const ctx = canvas.getContext("2d", { willReadFrequently: true });
     if (!ctx) throw new Error("This browser can't read camera frames. Try another browser.");
     const grab = (acc: RgbAccumulator) => {
-      ctx.drawImage(video as HTMLVideoElement, 0, 0, canvas.width, canvas.height);
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
       addImageDataToAccumulator(acc, ctx.getImageData(0, 0, canvas.width, canvas.height));
     };
 
@@ -105,13 +77,9 @@ export async function captureTorch(opts: TorchOptions = {}): Promise<TorchCaptur
     }
     const offStats = rgbStatsFromAccumulator(off);
 
-    if (!torchSupported) return { off: offStats, on: null, torch_available: false };
-    try {
-      await track.applyConstraints({ advanced: [{ torch: true } as MediaTrackConstraintSet] });
-      torchOn = true;
-    } catch {
-      return { off: offStats, on: null, torch_available: false }; // advertised but refused
-    }
+    if (!cam.torch) return { off: offStats, on: null, torch_available: false };
+    torchOn = await setTorch(track, true);
+    if (!torchOn) return { off: offStats, on: null, torch_available: false }; // advertised but didn't come on
     await wait(torchSettleMs, signal);
     const on = createRgbAccumulator();
     for (let i = 0; i < frames; i++) {
@@ -123,22 +91,8 @@ export async function captureTorch(opts: TorchOptions = {}): Promise<TorchCaptur
     onProgress?.(1);
     return { off: offStats, on: rgbStatsFromAccumulator(on), torch_available: true };
   } finally {
-    const track = stream?.getVideoTracks()[0];
-    await releaseTorch(track);
-    stream?.getTracks().forEach((t) => t.stop());
-    if (video) video.srcObject = null;
-  }
-}
-
-/** Waits until the video has a sized frame, so draws never read a blank element. */
-async function waitForVideo(video: HTMLVideoElement, signal?: AbortSignal): Promise<void> {
-  const end = Date.now() + 3000;
-  while (!video.videoWidth) {
-    signal?.throwIfAborted();
-    if (Date.now() > end) {
-      throw new Error("The camera didn't send any frames. Close other apps using the camera and try again.");
-    }
-    await wait(60, signal);
+    if (cam && torchOn) await setTorch(cam.track, false);
+    close(cam);
   }
 }
 

@@ -36,8 +36,13 @@ TORCH_EFFECT_MIN = 0.02
 SCREENLIGHT_AMBIENT_MAX = 0.08
 ACOUSTIC_MARGIN_MIN_DB = 6.0
 VIBRATION_RATIO_MIN = 2.0
-MOTION_ROT_MAX_DPS = 15.0
-MOTION_JITTER_MAX = 0.05
+# The phone reports the 90th-percentile rotation rate, not the single worst spike. These limits are
+# first estimates for a hand-held phone (gyro noise and hand tremor alone reach the old 15 deg/s), to
+# be tuned from real scans.
+MOTION_ROT_MAX_DPS = 45.0
+MOTION_ROT_WARN_DPS = 20.0
+MOTION_JITTER_MAX = 0.8
+MOTION_JITTER_WARN = 0.3
 CONTACT_CLIPPED_MAX = 0.3
 CONTACT_DARK_WARN = 0.1
 BUBBLE_TRACKED_MIN = 0.3
@@ -149,6 +154,9 @@ def check_motion(m: MotionCapture) -> list[Problem]:
     if m.max_rotation_dps > MOTION_ROT_MAX_DPS or m.accel_jitter > MOTION_JITTER_MAX:
         return [_reject("motion", "movement", "The phone moved too much during the scan.",
                         "Rest your hands on something steady, hold the phone still and scan again.")]
+    if m.max_rotation_dps > MOTION_ROT_WARN_DPS or m.accel_jitter > MOTION_JITTER_WARN:
+        return [_warn("motion", "some_movement", "The phone moved a little during the scan.",
+                      "Brace your elbow or rest the phone on the shelf for a steadier reading.")]
     return []
 
 

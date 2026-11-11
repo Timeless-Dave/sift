@@ -45,6 +45,21 @@ export function support(): SensorSupport {
   return { available: true };
 }
 
+let primed: AudioContext | null = null;
+/** Contexts that already registered the recorder processor (registering twice throws). */
+const recorderLoaded = new WeakSet<BaseAudioContext>();
+
+/**
+ * Call synchronously inside the tap that starts a scan. Browsers (iOS Safari strictly) only let
+ * audio start from a user gesture, and the sweep runs seconds later, after the light sweep.
+ */
+export function primeAudio(): void {
+  const Ctor = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+  if (!Ctor) return;
+  if (!primed || primed.state === "closed") primed = new Ctor();
+  void primed.resume().catch(() => undefined);
+}
+
 export interface AcousticOptions {
   signal?: AbortSignal;
   onProgress?: (fraction: number) => void;
@@ -69,14 +84,15 @@ export async function captureAcoustic(opts: AcousticOptions = {}): Promise<Acous
     }
     const Ctor = window.AudioContext ??
       (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-    const ctx = new Ctor();
+    const ownCtx = !primed || primed.state === "closed";
+    const ctx = ownCtx ? new Ctor() : (primed as AudioContext);
     try {
       await ctx.resume().catch(() => undefined);
       if (ctx.state === "suspended") {
         throw new Error("Sound is blocked on this phone. Tap the page once, then start the scan again.");
       }
       try {
-        await ctx.audioWorklet.addModule(RECORDER_URL);
+        if (!recorderLoaded.has(ctx)) { await ctx.audioWorklet.addModule(RECORDER_URL); recorderLoaded.add(ctx); }
       } catch {
         throwIfAborted(signal);
         throw new Error("This browser blocked the recorder. Try another browser.");
@@ -130,7 +146,8 @@ export async function captureAcoustic(opts: AcousticOptions = {}): Promise<Acous
         node.port.close();
       }
     } finally {
-      await ctx.close().catch(() => undefined);
+      if (ownCtx) await ctx.close().catch(() => undefined);
+      else await ctx.suspend().catch(() => undefined); // keep the unlocked context for the next scan
     }
   } finally {
     stream?.getTracks().forEach((t) => t.stop());
