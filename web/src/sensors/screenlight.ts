@@ -86,7 +86,8 @@ export async function captureScreenlight(opts: ScreenlightOptions): Promise<Scre
     flash.className = "flash";
     flash.setAttribute("role", "status");
     document.body.append(flash);
-    try { await flash.requestFullscreen?.(); } catch { /* optional */ }
+    // The scanner usually took fullscreen during the tap; only take it here if it didn't.
+    if (!document.fullscreenElement) { try { await flash.requestFullscreen?.(); } catch { /* optional */ } }
 
     const canvas = document.createElement("canvas");
     canvas.width = 64; canvas.height = 48;
@@ -114,7 +115,8 @@ export async function captureScreenlight(opts: ScreenlightOptions): Promise<Scre
     onProgress?.(1);
     return { frames };
   } finally {
-    if (typeof document !== "undefined" && document.fullscreenElement) {
+    // Leave fullscreen only if this sweep entered it (the scanner may hold it for the whole scan).
+    if (typeof document !== "undefined" && flash && document.fullscreenElement === flash) {
       await document.exitFullscreen().catch(() => undefined);
     }
     flash?.remove();

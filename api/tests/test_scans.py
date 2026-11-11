@@ -568,3 +568,12 @@ def test_new_modality_profiles_validate():
     for food_id in ("honey", "olive-oil"):
         limits = " ".join(all_foods[food_id].get("limits", [])).lower()
         assert "sealed" in limits and "mostly full" in limits and "clear" in limits, food_id
+
+
+def test_handheld_motion_passes_and_borderline_warns(client):
+    from sift.scan.quality import check_motion
+    from sift.scan.schemas import MotionCapture
+    assert check_motion(MotionCapture(max_rotation_dps=12.0, accel_jitter=0.12)) == []
+    warn = check_motion(MotionCapture(max_rotation_dps=30.0, accel_jitter=0.1))
+    assert [p.severity for p in warn] == ["warn"]
+    assert [p.severity for p in check_motion(MotionCapture(max_rotation_dps=60.0, accel_jitter=0.1))] == ["reject"]

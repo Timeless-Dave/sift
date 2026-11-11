@@ -59,6 +59,7 @@ export async function scanFood(
   signal: AbortSignal,
 ): Promise<Capture> {
   const capture: Capture = {};
+  const failures: Error[] = [];
   const supported = new Set(available(modalities).filter((a) => a.ok).map((a) => a.modality));
   for (const pose of POSES) {
     const mods = pose.modalities.filter((m) => modalities.includes(m) && supported.has(m));
@@ -68,7 +69,16 @@ export async function scanFood(
     onStage({ pose: pose.id, instruction: pose.instruction });
     const onProgress: OnProgress = (modality, fraction, hint) =>
       onStage({ pose: pose.id, instruction: pose.instruction, modality, fraction, hint });
-    const part = await runScan(mods, { screenSequence: SCREEN_SEQUENCE, frameMs: 450, onProgress, signal });
+    let part: Capture;
+    try {
+      part = await runScan(mods, { screenSequence: SCREEN_SEQUENCE, frameMs: 450, onProgress, signal });
+    } catch (e) {
+      // A pose whose sensors all failed (e.g. tissue reading without a switchable torch) is skipped;
+      // the scan fails only if no pose captured anything.
+      if (signal.aborted || (e as Error).name === "AbortError") throw e;
+      failures.push(e as Error);
+      continue;
+    }
     const { motion, ...rest } = part;
     Object.assign(capture, rest);
     // Each pose has its own motion monitor; keep the shakiest reading so the gate sees the worst moment.
@@ -76,6 +86,9 @@ export async function scanFood(
       max_rotation_dps: Math.max(capture.motion.max_rotation_dps, motion.max_rotation_dps),
       accel_jitter: Math.max(capture.motion.accel_jitter, motion.accel_jitter),
     } : motion;
+  }
+  if (!Object.keys(capture).some((k) => k !== "motion")) {
+    throw failures[0] ?? new Error("None of this food's sensors can run on this phone.");
   }
   return capture;
 }

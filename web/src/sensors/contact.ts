@@ -7,6 +7,7 @@
  * on error and cancel.
  */
 import { brightnessCentroid, clippedFraction, meanRgbFullFrame, ringProfile } from "./dsp";
+import { close, openRearCamera, setTorch, TorchUnavailableError, type RearCamera } from "./camera";
 import type { ContactCapture, RGB, SensorSupport } from "./types";
 
 /** Torch-off frames pooled into the dark level. */
@@ -52,48 +53,24 @@ export async function captureContact(opts: ContactOptions = {}): Promise<Contact
   const darkN = Math.max(1, Math.floor(darkFrames));
   const litN = Math.max(1, Math.floor(litFrames));
 
-  let stream: MediaStream | null = null;
-  let video: HTMLVideoElement | null = null;
+  let cam: RearCamera | null = null;
   let torchOn = false;
-  const releaseTorch = async (track: MediaStreamTrack | undefined) => {
-    if (torchOn && track) {
-      torchOn = false;
-      try {
-        await track.applyConstraints({ advanced: [{ torch: false } as MediaTrackConstraintSet] });
-      } catch { /* best effort */ }
-    }
-  };
   try {
     try {
-      stream = await navigator.mediaDevices.getUserMedia({
-        audio: false,
-        video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } },
-      });
-    } catch {
+      cam = await openRearCamera({ needTorch: true, signal });
+    } catch (e) {
       throwIfAborted(signal);
-      throw new Error("The rear camera didn't open. Allow camera access and try again.");
+      throw new Error((e as Error).message?.startsWith("The camera") ? (e as Error).message
+        : "The rear camera didn't open. Allow camera access and try again.");
     }
-    const track = stream.getVideoTracks()[0];
-    if (!track) throw new Error("The rear camera didn't open. Allow camera access and try again.");
-
-    video = document.createElement("video");
-    video.playsInline = true;
-    video.muted = true;
-    video.srcObject = stream;
-    try {
-      await video.play();
-    } catch {
-      throwIfAborted(signal);
-      throw new Error("The camera preview didn't start. Close other apps using the camera and try again.");
-    }
-    await waitForVideo(video, signal);
+    const { track, video } = cam;
 
     const canvas = document.createElement("canvas");
     canvas.width = FRAME_WIDTH; canvas.height = FRAME_HEIGHT;
     const ctx = canvas.getContext("2d", { willReadFrequently: true });
     if (!ctx) throw new Error("This browser can't read camera frames. Try another browser.");
     const readFrame = () => {
-      ctx.drawImage(video as HTMLVideoElement, 0, 0, canvas.width, canvas.height);
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
       return ctx.getImageData(0, 0, canvas.width, canvas.height);
     };
 
@@ -109,12 +86,10 @@ export async function captureContact(opts: ContactOptions = {}): Promise<Contact
     }
     dark[0] /= darkN; dark[1] /= darkN; dark[2] /= darkN;
 
-    try {
-      await track.applyConstraints({ advanced: [{ torch: true } as MediaTrackConstraintSet] });
-      torchOn = true;
-    } catch {
+    torchOn = cam.torch && await setTorch(track, true);
+    if (!torchOn) {
       throwIfAborted(signal);
-      throw new Error("This scan needs a phone with a controllable torch. Use Android Chrome and try again.");
+      throw new TorchUnavailableError();
     }
     await wait(torchSettleMs, signal);
     // Lock exposure and white balance where allowed, keeping the torch on.
@@ -148,24 +123,11 @@ export async function captureContact(opts: ContactOptions = {}): Promise<Contact
     onProgress?.(1);
     return { dark, rings, clipped: clipped / litN, torch_available: true };
   } finally {
-    const track = stream?.getVideoTracks()[0];
-    await releaseTorch(track);
-    stream?.getTracks().forEach((t) => t.stop());
-    if (video) video.srcObject = null;
+    if (cam && torchOn) await setTorch(cam.track, false);
+    close(cam);
   }
 }
 
-/** Waits until the video has a sized frame, so draws never read a blank element. */
-async function waitForVideo(video: HTMLVideoElement, signal?: AbortSignal): Promise<void> {
-  const end = Date.now() + 3000;
-  while (!video.videoWidth) {
-    signal?.throwIfAborted();
-    if (Date.now() > end) {
-      throw new Error("The camera didn't send any frames. Close other apps using the camera and try again.");
-    }
-    await wait(60, signal);
-  }
-}
 
 function throwIfAborted(signal?: AbortSignal): void {
   if (signal?.aborted) throw abortError(signal);

@@ -43,12 +43,12 @@ export function startMotionMonitor(): MotionMonitor {
   const sup = support();
   if (!sup.available) throw new Error(sup.reason ?? "The motion sensor isn't available.");
   const magnitudes: number[] = [];
-  let maxRotation = 0;
+  const rotations: number[] = [];
   const onMotion = (e: DeviceMotionEvent) => {
     const a = e.acceleration ?? e.accelerationIncludingGravity;
     if (a) magnitudes.push(Math.hypot(a.x ?? 0, a.y ?? 0, a.z ?? 0));
     const r = e.rotationRate;
-    if (r) maxRotation = Math.max(maxRotation, Math.hypot(r.alpha ?? 0, r.beta ?? 0, r.gamma ?? 0));
+    if (r) rotations.push(Math.hypot(r.alpha ?? 0, r.beta ?? 0, r.gamma ?? 0));
   };
   window.addEventListener("devicemotion", onMotion);
   let stopped = false;
@@ -59,7 +59,14 @@ export function startMotionMonitor(): MotionMonitor {
         stopped = true;
         window.removeEventListener("devicemotion", onMotion);
       }
-      return { max_rotation_dps: maxRotation, accel_jitter: std(magnitudes) };
+      // "max" on the wire is the 90th percentile: one gyro spike shouldn't reject a steady scan.
+      return { max_rotation_dps: percentile(rotations, 0.9), accel_jitter: std(magnitudes) };
     },
   };
+}
+
+function percentile(xs: number[], q: number): number {
+  if (!xs.length) return 0;
+  const sorted = [...xs].sort((a, b) => a - b);
+  return sorted[Math.min(sorted.length - 1, Math.floor(q * sorted.length))];
 }
