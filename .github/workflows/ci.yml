@@ -68,3 +68,31 @@ jobs:
           docker run -d --name api -p 8000:8000 --read-only --tmpfs /tmp -e SIFT_CORS=http://localhost sift-api
           for i in $(seq 1 30); do curl -fsS localhost:8000/health && exit 0; sleep 1; done
           docker logs api; exit 1
+
+  # End-to-end: the real app in Chrome against the real stack. Phone-only hardware (torch, vibration,
+  # motion, barcode) is faked at the browser-API level in web/e2e/hardware.ts.
+  e2e:
+    runs-on: ubuntu-latest
+    needs: [api, web]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: cp api/.env.example api/.env
+      - run: docker compose up -d --build --wait
+      - run: npm ci
+        working-directory: web
+      - run: npx playwright test
+        working-directory: web
+      - if: failure()
+        run: docker compose logs api web
+      - if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: playwright-report
+          path: web/playwright-report
